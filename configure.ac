@@ -25,4 +25,11 @@ AM_PATH_GLIB_2_0([],
                  [AC_MSG_ERROR([GLib >= $GLIB_REQUIRED required.])],
                  [gmodule gobject gthread gio])
 
+dnl ******************************
+dnl Check for MeCab
+dnl ******************************
+
+AC_CHECK_HEADERS(mecab.h)
+AC_CHECK_LIB(mecab, mecab_version)
+
 AC_OUTPUT

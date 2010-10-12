@@ -1,11 +1,13 @@
 
-noinst_LTLIBRARIES = test_inv_index.la
+noinst_LTLIBRARIES = test_inv_index.la test_data_loader.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
 LDFLAGS = -module -rpath $(libdir) -avoid-version -no-undefined
 
 test_inv_index_la_SOURCES = test-inv-index.c
+
+test_data_loader_la_SOURCES = test-data-loader.c
 
 INCLUDES = $(CUTTER_CFLAGS) -I$(top_srcdir)/src
 LIBS = $(CUTTER_LIBS) $(top_builddir)/src/libinv_index.la

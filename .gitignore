@@ -1,2 +1,12 @@
 /configure
 /config/*
+Makefile
+Makefile.in
+/aclocal.m4
+/autom4te.cache/*
+.libs
+config.h
+stamp-h1
+*.Plo
+/libtool
+/config.status

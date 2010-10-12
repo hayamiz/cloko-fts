@@ -8,5 +8,7 @@ Makefile.in
 config.h
 stamp-h1
 *.Plo
+*.Po
 /libtool
 /config.status
+/src/fts-node

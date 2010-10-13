@@ -37,6 +37,21 @@ posting_list_new (void)
     return posting_list;
 }
 
+
+static posting_list_free_gtree_func(gpointer key, gpointer value, gpointer data)
+{
+    g_free((PostingPair *) key);
+}
+void
+posting_list_free (PostingList *posting_list, gboolean free_pairs)
+{
+    if (free_pairs == TRUE){
+        g_tree_foreach(posting_list->list, posting_list_free_gtree_func, NULL);
+    }
+    g_tree_unref(posting_list->list);
+    g_free(posting_list);
+}
+
 static gboolean
 posting_list_copy_gtree_func (gpointer key, gpointer value, gpointer data)
 {

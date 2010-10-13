@@ -17,7 +17,7 @@ void test_posting_list_check (void);
 void test_new_inv_index (void);
 void test_inv_index_add (void);
 void test_inv_index_get (void);
-
+void test_inv_index_phrase_get (void);
 
 
 void
@@ -345,6 +345,7 @@ test_inv_index_phrase_get (void)
     cut_assert_not_null(list);
     cut_assert_equal_uint(2, posting_list_size(list));
     cut_assert_not_null(posting_list_check(list, 0, 0));
+    cut_assert_not_null(posting_list_check(list, 1, 0));
 
     phrase_append(phrase, "is");
 

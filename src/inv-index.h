@@ -48,6 +48,9 @@ typedef struct _InvIndex {
     GHashTable *hash;
 } InvIndex;
 
+typedef struct _FixedPostingList FixedPostingList;
+
+typedef struct _FixedIndex FixedIndex;
 
 Document    *document_parse        (const gchar *text, guint offset, gint doc_id, const gchar **endptr);
 gint         document_id           (Document *doc);
@@ -80,6 +83,7 @@ PostingPair *posting_pair_new (guint32 doc_id, gint32 pos);
 PostingPair *posting_pair_free (PostingPair *pair);
 
 PostingList *posting_list_new   (void);
+void         posting_list_free  (PostingList *posting_list, gboolean free_pairs);
 PostingList *posting_list_copy  (PostingList *posting_list);
 guint        posting_list_size  (PostingList *posting_list);
 void         posting_list_add   (PostingList *posting_list, guint32 doc_id, gint32 pos);
@@ -94,5 +98,23 @@ int          inv_index_numterms   (InvIndex *inv_index);
 PostingList *inv_index_get        (InvIndex *inv_index, const gchar *term);
 void         inv_index_add_term   (InvIndex *inv_index, const gchar *term, gint doc_id, gint pos);
 PostingList *inv_index_phrase_get (InvIndex *inv_index, Phrase *phrase);
+
+
+FixedPostingList *fixed_posting_list_new   (PostingList *list);
+void              fixed_posting_list_free  (FixedPostingList *posting_list);
+FixedPostingList *fixed_posting_list_copy  (FixedPostingList *fixed_posting_list);
+guint             fixed_posting_list_size  (FixedPostingList *fixed_posting_list);
+PostingPair      *fixed_posting_list_check (FixedPostingList *fixed_posting_list, guint32 doc_id, gint32 pos);
+FixedPostingList *fixed_posting_list_select_successor (FixedPostingList *base_list,
+                                                       FixedPostingList *successor_list,
+                                                       guint offset);
+
+FixedIndex       *fixed_index_new        (InvIndex *inv_index);
+void              fixed_index_free       (FixedIndex *fixed_index);
+int               fixed_index_numterms   (FixedIndex *fixed_index);
+FixedPostingList *fixed_index_get        (FixedIndex *fixed_index, const gchar *term);
+FixedPostingList *fixed_index_phrase_get (FixedIndex *fixed_index, Phrase *phrase);
+void              fixed_index_dump       (const gchar *path, FixedIndex *fixed_index);
+FixedIndex       *fixed_index_load       (const gchar *path);
 
 #endif

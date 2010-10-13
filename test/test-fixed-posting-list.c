@@ -5,6 +5,8 @@ void test_fixed_posting_list_new (void);
 void test_fixed_posting_list_copy (void);
 void test_fixed_posting_list_select_successor (void);
 void test_fixed_posting_list_check (void);
+void test_fixed_posting_list_intersect (void);
+void test_fixed_posting_list_doc_compact (void);
 
 void
 test_fixed_posting_list_new (void)
@@ -117,4 +119,64 @@ test_fixed_posting_list_select_successor (void)
     offset         = 3;
     base_list = fixed_posting_list_select_successor(base_list, succ_list, offset);
     cut_assert_equal_uint(0, fixed_posting_list_size(base_list));
+}
+
+void
+test_fixed_posting_list_doc_compact (void)
+{
+   PostingList *plist1 = posting_list_new();
+    posting_list_add(plist1, 0, 0);
+    posting_list_add(plist1, 0, 1);
+    posting_list_add(plist1, 1, 3);
+    posting_list_add(plist1, 3, 4);
+    posting_list_add(plist1, 100000, 4);
+    posting_list_add(plist1, 100000, 4);
+    PostingList *plist2 = posting_list_new();
+    posting_list_add(plist2, 0, 0);
+    posting_list_add(plist2, 1, 1);
+    posting_list_add(plist2, 2, 3);
+    posting_list_add(plist2, 3, 4);
+    posting_list_add(plist2, 200, 4);
+    posting_list_add(plist2, 100001, 4);
+    FixedPostingList *fplist1 = fixed_posting_list_new(plist1);
+    FixedPostingList *fplist2 = fixed_posting_list_new(plist2);
+
+    fplist1 = fixed_posting_list_doc_compact(fplist1);
+    cut_assert_not_null(fplist1);
+    cut_assert_equal_uint(4, fixed_posting_list_size(fplist1));
+    fplist2 = fixed_posting_list_doc_compact(fplist2);
+    cut_assert_not_null(fplist2);
+    cut_assert_equal_uint(6, fixed_posting_list_size(fplist2));
+}
+
+void test_fixed_posting_list_doc_intersect (void)
+{
+    PostingList *plist1 = posting_list_new();
+    posting_list_add(plist1, 0, 0);
+    posting_list_add(plist1, 0, 1);
+    posting_list_add(plist1, 1, 3);
+    posting_list_add(plist1, 3, 4);
+    posting_list_add(plist1, 200, 4);
+    posting_list_add(plist1, 100000, 4);
+    PostingList *plist2 = posting_list_new();
+    posting_list_add(plist2, 0, 0);
+    posting_list_add(plist2, 1, 1);
+    posting_list_add(plist2, 2, 3);
+    posting_list_add(plist2, 3, 4);
+    posting_list_add(plist2, 200, 4);
+    posting_list_add(plist2, 100001, 4);
+
+    FixedPostingList *fplist1 = fixed_posting_list_new(plist1);
+    FixedPostingList *fplist2 = fixed_posting_list_new(plist2);
+
+    FixedPostingList *list = fixed_posting_list_doc_intersect(fplist1, fplist2);
+    cut_assert_not_null(list);
+    cut_assert_equal_uint(4, fixed_posting_list_size(list));
+
+    list = fixed_posting_list_doc_intersect(fplist1, NULL);
+    cut_assert_not_null(list);
+    cut_assert_equal_uint(5, fixed_posting_list_size(list));
+    list = fixed_posting_list_doc_intersect(NULL, fplist2);
+    cut_assert_not_null(list);
+    cut_assert_equal_uint(6, fixed_posting_list_size(list));
 }

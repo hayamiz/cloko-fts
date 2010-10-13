@@ -35,7 +35,13 @@ typedef struct _Phrase {
     gchar **terms;
 } Phrase;
 
-typedef struct _DocIdList DocIdList;
+typedef struct _DocIdCell {
+    
+} DocIdCell;
+
+typedef struct _DocIdList {
+    
+} DocIdList;
 
 typedef struct _PostingPair {
     guint32 doc_id;
@@ -115,6 +121,9 @@ PostingPair      *fixed_posting_list_check (FixedPostingList *fixed_posting_list
 FixedPostingList *fixed_posting_list_select_successor (FixedPostingList *base_list,
                                                        FixedPostingList *successor_list,
                                                        guint offset);
+FixedPostingList *fixed_posting_list_doc_compact (FixedPostingList *fplist1);
+FixedPostingList *fixed_posting_list_doc_intersect (FixedPostingList *fplist1,
+                                                    FixedPostingList *fplist2);
 
 DocIdList *doc_id_list_new(FixedPostingList *fplist);
 DocIdList *doc_id_list_free(DocIdList *list);

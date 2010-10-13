@@ -110,4 +110,83 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
     return fplist;
 }
 
+FixedPostingList *
+fixed_posting_list_doc_compact (FixedPostingList *fplist)
+{
+    if (!fplist) return NULL;
+    if (fixed_posting_list_size(fplist) == 0) return fplist;
 
+    FixedPostingList *ret;
+    ret = g_malloc(sizeof(FixedPostingList));
+    ret->size = 1;
+    ret->pairs = g_malloc(sizeof(PostingPair));
+
+    guint doc_id = fplist->pairs[0].doc_id;
+    ret->pairs[0].doc_id = doc_id;
+    ret->pairs[0].pos = 0;
+    PostingPair *pair = fplist->pairs + 1;
+    PostingPair *sentiel = fplist->pairs + fplist->size;
+    while(pair < sentiel){
+        if (doc_id < pair->doc_id) {
+            ret->size++;
+            ret->pairs = g_realloc(ret->pairs, sizeof(PostingPair) * (ret->size));
+            doc_id = ret->pairs[ret->size - 1].doc_id = pair->doc_id;
+            ret->pairs[ret->size - 1].pos = 0;
+        }
+        pair++;
+    }
+
+    return ret;
+}
+
+FixedPostingList *
+fixed_posting_list_doc_intersect (FixedPostingList *fplist1,
+                                  FixedPostingList *fplist2)
+{
+    PostingPair *p1, *p2;
+    PostingPair *p1_sentinel, *p2_sentinel;
+    FixedPostingList *fplist;
+    guint size = 0;
+    PostingPair *pairs = NULL;
+    guint doc_id = 0;
+
+    if (!fplist1){
+        if (!fplist2){
+            return NULL;
+        } else {
+            return fixed_posting_list_doc_compact(fplist2);
+        }
+    }
+
+    if (!fplist2){
+        return fixed_posting_list_doc_compact(fplist1);
+    }
+
+    p1 = fplist1->pairs;
+    p2 = fplist2->pairs;
+    p1_sentinel = fplist1->pairs + fplist1->size;
+    p2_sentinel = fplist2->pairs + fplist2->size;
+
+    while(p1 != p1_sentinel && p2 != p2_sentinel){
+        if (p1->doc_id == p2->doc_id){
+            if (doc_id <= p1->doc_id){
+                size++;
+                pairs = g_realloc(pairs, size * sizeof(PostingPair));
+                pairs[size - 1].doc_id = p1->doc_id;
+                pairs[size - 1].pos = 0;
+                doc_id = p1->doc_id + 1;
+            }
+            p1++; p2++;
+        } else if (p1->doc_id < p2->doc_id) {
+            p1++;
+        } else {
+            p2++;
+        }
+    }
+
+    fplist = g_malloc(sizeof(FixedPostingList));
+    fplist->size = size;
+    fplist->pairs = pairs;
+
+    return fplist;
+}

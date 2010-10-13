@@ -327,6 +327,7 @@ main (gint argc, gchar **argv)
             while((term = tokenizer_next(tok)) != NULL){
                 inv_index_add_term(inv_index, term, doc_id, G_MININT + (pos++));
             }
+            tokenizer_free(tok);
         }
         g_timer_stop(timer);
         g_print("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",

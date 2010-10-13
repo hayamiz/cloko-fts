@@ -1,4 +1,5 @@
-noinst_LTLIBRARIES = libinv_index.la
+lib_LTLIBRARIES = libinv_index.la
+# noinst_LTLIBRARIES = libinv_index.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 

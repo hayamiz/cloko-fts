@@ -3,7 +3,7 @@ noinst_LTLIBRARIES =				\
 	test_inv_index.la			\
 	test_document_set.la			\
 	test_doc_tokenizer.la			\
-	test_fixed_posting_list.la
+	test_fixed_posting_list.la		\
 	test_fixed_index.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)

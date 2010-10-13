@@ -48,9 +48,14 @@ typedef struct _InvIndex {
     GHashTable *hash;
 } InvIndex;
 
-typedef struct _FixedPostingList FixedPostingList;
+typedef struct _FixedPostingList {
+    guint size;
+    PostingPair *pairs;
+} FixedPostingList;
 
-typedef struct _FixedIndex FixedIndex;
+typedef struct _FixedIndex {
+    GHashTable *hash;
+} FixedIndex;
 
 Document    *document_parse        (const gchar *text, guint offset, gint doc_id, const gchar **endptr);
 gint         document_id           (Document *doc);

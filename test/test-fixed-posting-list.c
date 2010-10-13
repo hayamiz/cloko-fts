@@ -3,7 +3,6 @@
 
 void test_fixed_posting_list_new (void);
 void test_fixed_posting_list_copy (void);
-void test_fixed_posting_list_add (void);
 void test_fixed_posting_list_select_successor (void);
 void test_fixed_posting_list_check (void);
 
@@ -17,6 +16,17 @@ test_fixed_posting_list_new (void)
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(0, fixed_posting_list_size(fplist));
     posting_list_free(posting_list, TRUE);
+    fixed_posting_list_free(fplist);
+
+    posting_list = posting_list_new();
+    posting_list_add(posting_list, 0, 0);
+    posting_list_add(posting_list, 1, 2);
+    fplist = fixed_posting_list_new(posting_list);
+    posting_list_free(posting_list, TRUE);
+
+    cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 0, 0));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 2));
     fixed_posting_list_free(fplist);
 }
 
@@ -33,62 +43,16 @@ test_fixed_posting_list_copy (void)
 
     fplist = fixed_posting_list_copy(ofplist);
     cut_assert(fplist != ofplist);
+    cut_assert_not_null(fplist);
     cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 0, 0));
-    cut_assert_not_null(fixed_posting_list_check(fplist, 0, 0));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 2));
 
     posting_list_add(original_list, 4, 5);
     fixed_posting_list_free(ofplist);
     ofplist = fixed_posting_list_new(original_list);
     cut_assert_equal_uint(3, fixed_posting_list_size(ofplist));
     cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
-}
-
-void
-test_fixed_posting_list_add (void)
-{
-    PostingList *posting_list;
-    FixedPostingList *fplist;
-    PostingPair *pair;
-
-    posting_list = posting_list_new();
-
-    posting_list_add(posting_list, 0, 1);
-    fplist = fixed_posting_list_new(posting_list);
-    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
-    fixed_posting_list_free(fplist);
-    posting_list_add(posting_list, 1, 12);
-    fplist = fixed_posting_list_new(posting_list);
-    cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
-    fixed_posting_list_free(fplist);
-    posting_list_add(posting_list, 1, 31);
-    fplist = fixed_posting_list_new(posting_list);
-    cut_assert_equal_uint(3, fixed_posting_list_size(fplist));
-    fixed_posting_list_free(fplist);
-    posting_list_add(posting_list, 0, 21);
-    fplist = fixed_posting_list_new(posting_list);
-    cut_assert_equal_uint(4, fixed_posting_list_size(fplist));
-    fixed_posting_list_free(fplist);
-    posting_list_add(posting_list, 1, 1);
-    fplist = fixed_posting_list_new(posting_list);
-    cut_assert_equal_uint(5, fixed_posting_list_size(fplist));
-    fixed_posting_list_free(fplist);
-    posting_list_add(posting_list, 0, 11);
-    fplist = fixed_posting_list_new(posting_list);
-    cut_assert_equal_uint(6, fixed_posting_list_size(fplist));
-
-    cut_assert_not_null(fixed_posting_list_check(fplist, 0, 1));
-    cut_assert_not_null(fixed_posting_list_check(fplist, 0, 11));
-    cut_assert_not_null(fixed_posting_list_check(fplist, 0, 21));
-    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 1));
-    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 12));
-    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 31));
-    fixed_posting_list_free(fplist);
-
-    posting_list_add(posting_list, 0, 1);
-    fplist = fixed_posting_list_new(posting_list);
-    cut_assert_equal_uint(6, fixed_posting_list_size(fplist));
-    fixed_posting_list_free(fplist);
 }
 
 void

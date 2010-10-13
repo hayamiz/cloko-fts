@@ -36,9 +36,9 @@ cut_setup (void)
 void
 test_fixed_index_new (void)
 {
-    cut_omit("omit");
     InvIndex *inv_index = inv_index_new();
     FixedIndex *fixed_index = fixed_index_new(inv_index);
+    cut_assert_not_null(fixed_index);
     cut_assert_equal_uint(0, fixed_index_numterms(fixed_index));
     fixed_index_free(fixed_index);
     inv_index_free(inv_index);
@@ -49,7 +49,6 @@ test_fixed_index_new (void)
 void
 test_fixed_index_get (void)
 {
-    cut_omit("omit");
     InvIndex *inv_index = inv_index_new();
     FixedIndex *fixed_index = fixed_index_new(inv_index);
     FixedPostingList *fplist;
@@ -84,7 +83,6 @@ test_fixed_index_get (void)
 void
 test_fixed_index_phrase_get (void)
 {
-    cut_omit("omit");
     InvIndex         *inv_index;
     FixedIndex       *fixed_index;
     Phrase           *phrase;
@@ -108,32 +106,38 @@ test_fixed_index_phrase_get (void)
     phrase_append(phrase, "this");
     fplist = fixed_index_phrase_get(fixed_index, phrase);
     cut_assert_not_null(fplist);
-    cut_assert_equal_uint(2, fixed_posting_list_size(list));
-    cut_assert_not_null(fixed_posting_list_check(list, 0, 0));
-    cut_assert_not_null(fixed_posting_list_check(list, 1, 0));
+    cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 0, 0));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 0));
 
     phrase_append(phrase, "is");
 
-    list = fixed_index_phrase_get(fixed_index, phrase);
-    cut_assert_not_null(list);
-    cut_assert_equal_uint(2, fixed__list_size(list));
+    fplist = fixed_index_phrase_get(fixed_index, phrase);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
 
-    cut_assert_not_null(fixed__list_check(list, 0, 0));
-    cut_assert_not_null(fixed__list_check(list, 1, 0));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 0, 0));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 0));
 
+
+    // check posting is not destructed
+    fplist = fixed_index_get(fixed_index, "this");
+    cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 0, 0));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 0));
 
     phrase_append(phrase, "a");
 
-    list = fixed_index_phrase_get(fixed_index, phrase);
-    cut_assert_equal_uint(1, fixed__list_size(list));
-    cut_assert_not_null(fixed__list_check(list, 1, 0));
+    fplist = fixed_index_phrase_get(fixed_index, phrase);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+    cut_assert_not_null(fixed_posting_list_check(fplist, 1, 0));
 }
 
 void
 test_fixed_index_load_dump (void)
 {
     cut_omit("omit");
-    InvIndex *inv_index = inv_index_new()
+    InvIndex *inv_index = inv_index_new();
     FixedIndex *fixed_index = fixed_index_new(inv_index);
     inv_index_free(inv_index);
     fixed_index_dump("/tmp/fixed_index.dump", fixed_index);

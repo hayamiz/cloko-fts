@@ -359,7 +359,8 @@ test_inv_index_phrase_get (void)
     // check posting is not destructed
     list = inv_index_get(inv_index, "this");
     cut_assert_equal_uint(2, posting_list_size(list));
-
+    cut_assert_not_null(posting_list_check(list, 0, 0));
+    cut_assert_not_null(posting_list_check(list, 1, 0));
 
     phrase_append(phrase, "a");
 

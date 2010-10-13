@@ -252,6 +252,7 @@ test_new_inv_index (void)
     inv_index = inv_index_new();
     cut_assert_not_null(inv_index);
     cut_assert_equal_uint(0, inv_index_numterms(inv_index));
+    inv_index_free(inv_index);
 }
 
 void

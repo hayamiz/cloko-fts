@@ -89,6 +89,7 @@ PostingList *posting_list_select_successor (PostingList *base_list,
                                             guint offset);
 
 InvIndex    *inv_index_new        (void);
+void         inv_index_free       (InvIndex *inv_index);
 int          inv_index_numterms   (InvIndex *inv_index);
 PostingList *inv_index_get        (InvIndex *inv_index, const gchar *term);
 void         inv_index_add_term   (InvIndex *inv_index, const gchar *term, gint doc_id, gint pos);

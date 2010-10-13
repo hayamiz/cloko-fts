@@ -55,6 +55,13 @@ inv_index_new (void)
     return inv_index;
 }
 
+void
+inv_index_free (InvIndex *inv_index)
+{
+    g_hash_table_destroy(inv_index->hash);
+    g_free(inv_index);
+}
+
 int
 inv_index_numterms (InvIndex *inv_index)
 {

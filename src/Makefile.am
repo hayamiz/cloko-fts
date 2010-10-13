@@ -4,7 +4,10 @@ AM_CFLAGS = $(GLIB_CFLAGS)
 
 LDFLAGS = -no-undefined
 
-libinv_index_la_SOURCES = inv-index.c
+libinv_index_la_SOURCES =			\
+	inv-index.c				\
+	document-set.c				\
+	document.c
 
 bin_PROGRAMS = fts-node
 

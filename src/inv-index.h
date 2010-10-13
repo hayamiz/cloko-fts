@@ -3,6 +3,26 @@
 
 #include <glib.h>
 
+typedef struct _Document {
+    gint  id;
+    guint pos;
+    guint time;
+    guint size;
+    guint body_size;
+    const gchar *title;
+    const gchar *url;
+    const gchar *url_top;
+    const gchar *docset_buf;
+    const gchar *body_pointer;
+} Document;
+
+typedef struct _DocumentSet {
+    const gchar *buffer;
+    guint buffer_size;
+    Document **docs;
+    guint size;
+} DocumentSet;
+
 typedef struct _Phrase {
     guint size;
     const gchar **terms;
@@ -20,6 +40,22 @@ typedef struct _PostingList {
 typedef struct _InvIndex {
     GHashTable *hash;
 } InvIndex;
+
+
+Document    *document_parse        (const gchar *text, guint offset, gint doc_id, const gchar **endptr);
+gint         document_id           (Document *doc);
+guint        document_position     (Document *doc);
+const gchar *document_body_pointer (Document *doc);
+guint        document_body_size    (Document *doc);
+const gchar *document_title        (Document *doc);
+const gchar *document_url          (Document *doc);
+guint        document_time         (Document *doc);
+gchar       *document_raw_record   (Document *doc);
+
+DocumentSet *document_set_load   (const gchar *path);
+guint        document_set_size   (DocumentSet *docset);
+Document    *document_set_nth    (DocumentSet *docset, guint idx);
+const gchar *document_set_buffer (DocumentSet *docset);
 
 Phrase      *phrase_new(void);
 guint        phrase_size(Phrase *phrase);

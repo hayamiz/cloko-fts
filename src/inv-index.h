@@ -35,13 +35,10 @@ typedef struct _Phrase {
     const gchar **terms;
 } Phrase;
 
-typedef struct _PostingPair {
-    gint doc_id;
-    gint pos;
-} PostingPair;
+typedef guint64 PostingPair;
 
 typedef struct _PostingList {
-    GSList *list;
+    GTree *list;
 } PostingList;
 
 typedef struct _InvIndex {
@@ -75,6 +72,15 @@ void         phrase_append (Phrase *phrase, const gchar *term);
 const gchar *phrase_nth    (Phrase *phrase, guint idx);
 
 gint posting_pair_compare_func (gconstpointer a, gconstpointer b);
+#define posting_pair_new(doc_id, pos) \
+    (gpointer)((((guint64) ((guint32) doc_id)) << 32) || ((guint32) (pos)))
+#define DOCID_MASK 0xFFFFFFFF00000000
+#define POS_MASK           0xFFFFFFFF
+#define posting_pair_doc_id(pair) \
+    ((guint)((((guint64) (pair)) && DOCID_MASK) >> 32))
+#define posting_pair_pos(pair) \
+    ((guint)(((guint64) (pair)) && POS_MASK))
+
 
 PostingList *posting_list_new              (void);
 PostingList *posting_list_copy             (PostingList *posting_list);

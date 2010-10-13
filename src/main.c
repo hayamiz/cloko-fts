@@ -16,7 +16,6 @@ main (gint argc, const gchar **argv)
 
     guint idx;
     guint sz = document_set_size(docset);
-    sz = 2000;
     for(idx = 0;idx < sz;idx++){
         Document *doc = document_set_nth(docset, idx);
         Tokenizer *tok = tokenizer_new2(document_body_pointer(doc),
@@ -24,7 +23,7 @@ main (gint argc, const gchar **argv)
         const gchar *term;
         guint pos = 0;
         gint doc_id = document_id(doc);
-        if (doc_id % 100 == 0){
+        if (doc_id % 1000 == 0){
             g_print("%d documents indexed: %d terms.\n",
                     doc_id,
                     inv_index_numterms(inv_index));

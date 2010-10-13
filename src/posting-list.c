@@ -4,16 +4,11 @@
 gint
 posting_pair_compare_func (gconstpointer a, gconstpointer b)
 {
-    PostingPair *p1 = (PostingPair *) a;
-    PostingPair *p2 = (PostingPair *) b;
+    PostingPair p1 = (PostingPair) a;
+    PostingPair p2 = (PostingPair) b;
 
-    gint doc_diff = (p1->doc_id < p2->doc_id ? -1 :
-                     (p1->doc_id > p2->doc_id ? 1 : 0));
-    gint pos_diff = (p1->pos < p2->pos ? -1 :
-                     (p1->pos > p2->pos ? 1 : 0));
-
-
-    return (doc_diff == 0 ? pos_diff : doc_diff);
+    return (p1 < p2 ? -1 :
+            (p1 > p2 ? 1 : 0));
 }
 
 PostingList *
@@ -21,9 +16,18 @@ posting_list_new (void)
 {
     PostingList *posting_list;
     posting_list = g_malloc(sizeof(PostingList));
-    posting_list->list = NULL;
+    posting_list->list = g_tree_new(posting_pair_compare_func);
 
     return posting_list;
+}
+
+static gboolean
+posting_list_copy_gtree_func (gpointer key, gpointer value, gpointer data)
+{
+    GTree *tree = (GTree *) data;
+    g_tree_insert(tree, key, value);
+    g_printerr("new tree: %d nodes.\n", g_tree_nnodes(tree));
+    return FALSE;
 }
 
 PostingList *
@@ -31,7 +35,10 @@ posting_list_copy (PostingList *orig_list)
 {
     PostingList *posting_list;
     posting_list = g_malloc(sizeof(PostingList));
-    posting_list->list = g_slist_copy(orig_list->list);
+    GTree *new_tree = g_tree_new(posting_pair_compare_func);
+    g_printerr("new tree: %p.\n", new_tree);
+    g_tree_foreach(orig_list->list, posting_list_copy_gtree_func, new_tree);
+    posting_list->list = new_tree;
 
     return posting_list;
 }
@@ -39,61 +46,75 @@ posting_list_copy (PostingList *orig_list)
 guint
 posting_list_size (PostingList *posting_list)
 {
-    return g_slist_length(posting_list->list);
+    return g_tree_nnodes(posting_list->list);
 }
 
 void
 posting_list_add (PostingList *posting_list, gint doc_id, gint pos)
 {
-    PostingPair *pair = g_malloc(sizeof(PostingPair));
+    PostingPair *pair = posting_list_new(doc_id, pos)
     pair->doc_id = doc_id;
     pair->pos    = pos;
 
-    if (posting_list->list == NULL){
-        posting_list->list = g_slist_append(NULL, pair);
-        return;
-    }
-
-    GSList *list = posting_list->list;
-    GSList *pred_list = posting_list->list;
-
-    gint cmp;
-
-    cmp = posting_pair_compare_func(pair, (PostingPair *) list->data);
-    if (cmp < 0){
-        posting_list->list = g_slist_prepend(list, pair);
-        return;
-    } else if (cmp == 0) {
-        return;
-    }
-
-    list = list->next;
-
-    while(list != NULL){
-        cmp = posting_pair_compare_func(pair, (PostingPair *) list->data);
-        if (cmp == 0){
-            return;
-        } else if (cmp < 0){
-            pred_list = g_slist_insert_before(pred_list, list, pair);
-            return;
-        }
-
-        pred_list = list;
-        list = list->next;
-    }
-
-    pred_list = g_slist_append(pred_list, pair);
+    g_tree_insert(posting_list->list, pair, (gpointer) TRUE);
 }
 
-PostingPair *
+
+struct posting_list_nth_gtree_arg {
+    guint idx;
+    guint target_idx;
+    PostingPair out;
+};
+
+static gboolean
+posting_list_nth_gtree_func (gpointer key, gpointer value, gpointer data)
+{
+    struct posting_list_nth_gtree_arg *arg =
+        (struct posting_list_nth_gtree_arg *) data;
+    if (arg->idx == arg->target_idx){
+        arg->out = key;
+        return TRUE;
+    }
+    arg->idx++;
+    return FALSE;
+}
+
+PostingPair
 posting_list_nth (PostingList *posting_list, guint idx)
 {
     if (posting_list == NULL ||
-        idx >= g_slist_length(posting_list->list)) {
+        posting_list_size(posting_list) == 0 ||
+        posting_list_size(posting_list) <= idx){
         return NULL;
     }
 
-    return (PostingPair *) g_slist_nth_data(posting_list->list, idx);
+    struct posting_list_nth_gtree_arg arg;
+    arg.target_idx = idx;
+    arg.idx = 0;
+
+    g_tree_foreach(posting_list->list, posting_list_nth_gtree_func, &arg);
+
+    return arg.out;
+}
+
+struct posting_list_select_successor_gtree_arg {
+    GTree *succ_tree;
+    guint offset;
+    GSList *delete_nodes;
+};
+static gboolean
+posting_list_select_successor_gtree_func(gpointer key, gpointer value, gpointer data)
+{
+    struct posting_list_select_successor_gtree_arg *arg =
+        (struct posting_list_select_successor_gtree_arg *) data;
+
+    ((PostingPair)key)->pos += arg->offset;
+    if (g_tree_lookup(arg->succ_tree, key) == NULL){
+        arg->delete_nodes = g_slist_prepend(arg->delete_nodes, key);
+    }
+    ((PostingPair)key)->pos -= arg->offset;
+
+    return FALSE;
 }
 
 PostingList *
@@ -101,47 +122,16 @@ posting_list_select_successor (PostingList *base_list,
                                PostingList *successor_list,
                                guint offset)
 {
-    if (posting_list_size(base_list) == 0 ||
-        posting_list_size(successor_list) == 0)
-    {
-        return NULL;
-    }
+    struct posting_list_select_successor_gtree_arg arg;
+    arg.succ_tree = successor_list->list;
+    arg.offset = offset;
+    arg.delete_nodes = NULL;
 
-    GSList *list = base_list->list;
-    GSList *pred_list = list;
-    GSList *succ_list = successor_list->list;
-    PostingPair *base_pair;
-    PostingPair *succ_pair;
+    g_tree_foreach(base_list->list, posting_list_select_successor_gtree_func, &arg);
 
-    while(list != NULL){
-        base_pair = g_slist_nth_data(list, 0);
-
-        while(succ_list != NULL){
-            succ_pair = g_slist_nth_data(succ_list, 0);
-            if (succ_pair->doc_id > base_pair->doc_id){
-                break;
-            } else if (succ_pair->doc_id == base_pair->doc_id){
-                if (succ_pair->pos == base_pair->pos + offset){
-                    succ_list = g_slist_next(succ_list);
-                    goto selected;
-                }
-            }
-            succ_list = g_slist_next(succ_list);
-        }
-
-        // no matching successor
-        if (pred_list == list) { // head of the list
-            base_list->list = g_slist_delete_link(base_list->list, list);
-            list = pred_list = base_list->list;
-        } else {
-            pred_list = g_slist_delete_link(pred_list, list);
-            list = g_slist_next(pred_list);
-        }
-        continue;
-
-    selected:
-        pred_list = list;
-        list = g_slist_next(list);
+    while(arg.delete_nodes != NULL){
+        g_tree_remove(base_list->list, arg.delete_nodes->data);
+        arg.delete_nodes = g_slist_next(arg.delete_nodes);
     }
 
     return base_list;

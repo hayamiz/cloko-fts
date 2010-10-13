@@ -6,6 +6,7 @@ void test_phrase_append (void);
 void test_phrase_nth (void);
 
 void test_posting_pair_compare_func (void);
+void test_posting_pair_new (void);
 
 void test_posting_list_new (void);
 void test_posting_list_copy (void);
@@ -87,6 +88,27 @@ test_posting_pair_compare_func (void)
     p1.pos    = 1;
     p2.pos    = 0;
     cut_assert_operator_int(0, <, posting_pair_compare_func(&p1, &p2));
+}
+
+void
+test_posting_pair_new (void)
+{
+    PostingPair pair;
+    pair = posting_pair_new(0, 0);
+    cut_assert_equal_int(0, posting_pair_doc_id(pair));
+    cut_assert_equal_int(0, posting_pair_pos(pair));
+
+    pair = posting_pair_new(1, 1);
+    cut_assert_equal_int(1, posting_pair_doc_id(pair));
+    cut_assert_equal_int(1, posting_pair_pos(pair));
+
+    pair = posting_pair_new(3, 4);
+    cut_assert_equal_int(3, posting_pair_doc_id(pair));
+    cut_assert_equal_int(4, posting_pair_pos(pair));
+
+    pair = posting_pair_new(-3, -4);
+    cut_assert_equal_int(-3, posting_pair_doc_id(pair));
+    cut_assert_equal_int(-4, posting_pair_pos(pair));
 }
 
 void

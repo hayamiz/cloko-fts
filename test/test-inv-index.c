@@ -12,7 +12,7 @@ void test_posting_list_new (void);
 void test_posting_list_copy (void);
 void test_posting_list_add (void);
 void test_posting_list_select_successor (void);
-void test_posting_list_nth (void);
+void test_posting_list_check (void);
 
 void test_new_inv_index (void);
 void test_inv_index_add (void);
@@ -39,6 +39,7 @@ test_phrase_append (void)
 
     phrase_append(phrase, "bar");
     cut_assert_equal_uint(2, phrase_size(phrase));
+    phrase_free(phrase);
 }
 
 void
@@ -93,22 +94,26 @@ test_posting_pair_compare_func (void)
 void
 test_posting_pair_new (void)
 {
-    PostingPair pair;
+    PostingPair *pair;
     pair = posting_pair_new(0, 0);
-    cut_assert_equal_int(0, posting_pair_doc_id(pair));
-    cut_assert_equal_int(0, posting_pair_pos(pair));
+    cut_assert_equal_int(0, pair->doc_id);
+    cut_assert_equal_int(0, pair->pos);
+    posting_pair_free(pair);
 
     pair = posting_pair_new(1, 1);
-    cut_assert_equal_int(1, posting_pair_doc_id(pair));
-    cut_assert_equal_int(1, posting_pair_pos(pair));
+    cut_assert_equal_int(1, pair->doc_id);
+    cut_assert_equal_int(1, pair->pos);
+    posting_pair_free(pair);
 
     pair = posting_pair_new(3, 4);
-    cut_assert_equal_int(3, posting_pair_doc_id(pair));
-    cut_assert_equal_int(4, posting_pair_pos(pair));
+    cut_assert_equal_int(3, pair->doc_id);
+    cut_assert_equal_int(4, pair->pos);
+    posting_pair_free(pair);
 
-    pair = posting_pair_new(-3, -4);
-    cut_assert_equal_int(-3, posting_pair_doc_id(pair));
-    cut_assert_equal_int(-4, posting_pair_pos(pair));
+    pair = posting_pair_new(3, -4);
+    cut_assert_equal_int(3, pair->doc_id);
+    cut_assert_equal_int(-4, pair->pos);
+    posting_pair_free(pair);
 }
 
 void
@@ -131,12 +136,9 @@ test_posting_list_copy (void)
 
     list = posting_list_copy(original_list);
     cut_assert(list != original_list);
-    cut_assert_equal_uint(2, posting_list_size(original_list));
     cut_assert_equal_uint(2, posting_list_size(list));
-    cut_assert_equal_int(0, posting_pair_compare_func(posting_list_nth(original_list, 0),
-                                                      posting_list_nth(list, 0)));
-    cut_assert_equal_int(0, posting_pair_compare_func(posting_list_nth(original_list, 1),
-                                                      posting_list_nth(list, 1)));
+    cut_assert_not_null(posting_list_check(list, 0, 0));
+    cut_assert_not_null(posting_list_check(list, 0, 0));
 
     posting_list_add(original_list, 4, 5);
     cut_assert_equal_uint(3, posting_list_size(original_list));
@@ -164,29 +166,12 @@ test_posting_list_add (void)
     posting_list_add(posting_list, 0, 11);
     cut_assert_equal_uint(6, posting_list_size(posting_list));
 
-    pair = posting_list_nth(posting_list, 0);
-    cut_assert_equal_uint(0, pair->doc_id);
-    cut_assert_equal_uint(1, pair->pos);
-
-    pair = posting_list_nth(posting_list, 1);
-    cut_assert_equal_uint(0, pair->doc_id);
-    cut_assert_equal_uint(11, pair->pos);
-
-    pair = posting_list_nth(posting_list, 2);
-    cut_assert_equal_uint(0, pair->doc_id);
-    cut_assert_equal_uint(21, pair->pos);
-
-    pair = posting_list_nth(posting_list, 3);
-    cut_assert_equal_uint(1, pair->doc_id);
-    cut_assert_equal_uint(1, pair->pos);
-
-    pair = posting_list_nth(posting_list, 4);
-    cut_assert_equal_uint(1, pair->doc_id);
-    cut_assert_equal_uint(12, pair->pos);
-
-    pair = posting_list_nth(posting_list, 5);
-    cut_assert_equal_uint(1, pair->doc_id);
-    cut_assert_equal_uint(31, pair->pos);
+    cut_assert_not_null(posting_list_check(posting_list, 0, 1));
+    cut_assert_not_null(posting_list_check(posting_list, 0, 11));
+    cut_assert_not_null(posting_list_check(posting_list, 0, 21));
+    cut_assert_not_null(posting_list_check(posting_list, 1, 1));
+    cut_assert_not_null(posting_list_check(posting_list, 1, 12));
+    cut_assert_not_null(posting_list_check(posting_list, 1, 31));
 
     posting_list_add(posting_list, 0, 1);
     cut_assert_equal_uint(6, posting_list_size(posting_list));
@@ -243,29 +228,21 @@ test_posting_list_select_successor (void)
 }
 
 void
-test_posting_list_nth (void)
+test_posting_list_check (void)
 {
     PostingList *list = NULL;
     PostingPair *pair = NULL;
 
-    cut_assert_null(posting_list_nth(list, 0));
+    cut_assert_null(posting_list_check(list, 0, 0));
     list = posting_list_new();
-    cut_assert_null(posting_list_nth(list, 0));
+    cut_assert_null(posting_list_check(list, 0, 0));
 
     posting_list_add(list, 0, 0);
     posting_list_add(list, 2, 1);
 
-    pair = posting_list_nth(list, 0);
-    cut_assert_not_null(pair);
-    cut_assert_equal_int(0, pair->doc_id);
-    cut_assert_equal_int(0, pair->pos);
-
-    pair = posting_list_nth(list, 1);
-    cut_assert_not_null(pair);
-    cut_assert_equal_int(2, pair->doc_id);
-    cut_assert_equal_int(1, pair->pos);
-
-    cut_assert_null(posting_list_nth(list, 2));
+    cut_assert_not_null(posting_list_check(list, 0, 0));
+    cut_assert_not_null(posting_list_check(list, 2, 1));
+    cut_assert_null(posting_list_check(list, 2, 3));
 }
 
 void
@@ -322,39 +299,23 @@ test_inv_index_get (void)
 
     cut_assert_not_null(posting_list = inv_index_get(inv_index, term1));
     cut_assert_equal_uint(2, posting_list_size(posting_list));
-    posting_pair = posting_list_nth(posting_list, 0);
-    cut_assert_equal_int(0, posting_pair->doc_id);
-    cut_assert_equal_int(0, posting_pair->pos);
-    posting_pair = posting_list_nth(posting_list, 1);
-    cut_assert_equal_int(2, posting_pair->doc_id);
-    cut_assert_equal_int(0, posting_pair->pos);
+    cut_assert_not_null(posting_list_check(posting_list, 0, 0));
+    cut_assert_not_null(posting_list_check(posting_list, 2, 0));
 
     cut_assert_not_null(posting_list = inv_index_get(inv_index, term2));
     cut_assert_equal_uint(1, posting_list_size(posting_list));
-    posting_pair = posting_list_nth(posting_list, 0);
-    cut_assert_equal_int(1, posting_pair->doc_id);
-    cut_assert_equal_int(1, posting_pair->pos);
+    cut_assert_not_null(posting_list_check(posting_list, 1, 1));
 
     cut_assert_not_null(posting_list = inv_index_get(inv_index, term3));
     cut_assert_equal_uint(3, posting_list_size(posting_list));
-    posting_pair = posting_list_nth(posting_list, 0);
-    cut_assert_equal_int(0, posting_pair->doc_id);
-    cut_assert_equal_int(2, posting_pair->pos);
-    posting_pair = posting_list_nth(posting_list, 1);
-    cut_assert_equal_int(1, posting_pair->doc_id);
-    cut_assert_equal_int(2, posting_pair->pos);
-    posting_pair = posting_list_nth(posting_list, 2);
-    cut_assert_equal_int(2, posting_pair->doc_id);
-    cut_assert_equal_int(2, posting_pair->pos);
+    cut_assert_not_null(posting_list_check(posting_list, 0, 2));
+    cut_assert_not_null(posting_list_check(posting_list, 1, 2));
+    cut_assert_not_null(posting_list_check(posting_list, 2, 2));
 
     cut_assert_not_null(posting_list = inv_index_get(inv_index, term4));
     cut_assert_equal_uint(2, posting_list_size(posting_list));
-    posting_pair = posting_list_nth(posting_list, 0);
-    cut_assert_equal_int(2, posting_pair->doc_id);
-    cut_assert_equal_int(3, posting_pair->pos);
-    posting_pair = posting_list_nth(posting_list, 1);
-    cut_assert_equal_int(3, posting_pair->doc_id);
-    cut_assert_equal_int(3, posting_pair->pos);
+    cut_assert_not_null(posting_list_check(posting_list, 2, 3));
+    cut_assert_not_null(posting_list_check(posting_list, 3, 3));
 
 }
 
@@ -382,10 +343,7 @@ test_inv_index_phrase_get (void)
     list = inv_index_phrase_get(inv_index, phrase);
     cut_assert_not_null(list);
     cut_assert_equal_uint(2, posting_list_size(list));
-    pair = posting_list_nth(list, 0);
-    cut_assert_equal_int(0, pair->doc_id);
-    cut_assert_equal_int(0, pair->pos);
-
+    cut_assert_not_null(posting_list_check(list, 0, 0));
 
     phrase_append(phrase, "is");
 
@@ -393,13 +351,8 @@ test_inv_index_phrase_get (void)
     cut_assert_not_null(list);
     cut_assert_equal_uint(2, posting_list_size(list));
 
-    pair = posting_list_nth(list, 0);
-    cut_assert_equal_int(0, pair->doc_id);
-    cut_assert_equal_int(0, pair->pos);
-
-    pair = posting_list_nth(list, 1);
-    cut_assert_equal_int(1, pair->doc_id);
-    cut_assert_equal_int(0, pair->pos);
+    cut_assert_not_null(posting_list_check(list, 0, 0));
+    cut_assert_not_null(posting_list_check(list, 1, 0));
 
     // check posting is not destructed
     list = inv_index_get(inv_index, "this");
@@ -410,7 +363,5 @@ test_inv_index_phrase_get (void)
 
     list = inv_index_phrase_get(inv_index, phrase);
     cut_assert_equal_uint(1, posting_list_size(list));
-    pair = posting_list_nth(list, 0);
-    cut_assert_equal_int(1, pair->doc_id);
-    cut_assert_equal_int(0, pair->pos);
+    cut_assert_not_null(posting_list_check(list, 1, 0));
 }

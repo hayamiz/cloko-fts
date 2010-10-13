@@ -11,6 +11,16 @@ phrase_new (void)
     return phrase;
 }
 
+void
+phrase_free (Phrase *phrase)
+{
+    guint i;
+    for(i = 0;i < phrase->size;i++){
+        g_free(phrase->terms[i]);
+    }
+    g_free(phrase);
+}
+
 guint
 phrase_size (Phrase *phrase)
 {
@@ -22,7 +32,7 @@ phrase_append (Phrase *phrase, const gchar *term)
 {
     phrase->size ++;
     phrase->terms = g_realloc(phrase->terms, phrase->size * sizeof(const gchar *));
-    phrase->terms[phrase->size - 1] = term;
+    phrase->terms[phrase->size - 1] = g_strdup(term);
 }
 
 const gchar *

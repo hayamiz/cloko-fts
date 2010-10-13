@@ -32,10 +32,13 @@ typedef struct _Tokenizer {
 
 typedef struct _Phrase {
     guint size;
-    const gchar **terms;
+    gchar **terms;
 } Phrase;
 
-typedef guint64 PostingPair;
+typedef struct _PostingPair {
+    guint32 doc_id;
+    gint32 pos;
+} PostingPair;
 
 typedef struct _PostingList {
     GTree *list;
@@ -67,26 +70,20 @@ void         tokenizer_free (Tokenizer *tok);
 const gchar *tokenizer_next (Tokenizer *tok);
 
 Phrase      *phrase_new    (void);
+void         phrase_free   (Phrase *phrase);
 guint        phrase_size   (Phrase *phrase);
 void         phrase_append (Phrase *phrase, const gchar *term);
 const gchar *phrase_nth    (Phrase *phrase, guint idx);
 
 gint posting_pair_compare_func (gconstpointer a, gconstpointer b);
-#define posting_pair_new(doc_id, pos) \
-    (gpointer)((((guint64) ((guint32) doc_id)) << 32) || ((guint32) (pos)))
-#define DOCID_MASK 0xFFFFFFFF00000000
-#define POS_MASK           0xFFFFFFFF
-#define posting_pair_doc_id(pair) \
-    ((guint)((((guint64) (pair)) && DOCID_MASK) >> 32))
-#define posting_pair_pos(pair) \
-    ((guint)(((guint64) (pair)) && POS_MASK))
+PostingPair *posting_pair_new (guint32 doc_id, gint32 pos);
+PostingPair *posting_pair_free (PostingPair *pair);
 
-
-PostingList *posting_list_new              (void);
-PostingList *posting_list_copy             (PostingList *posting_list);
-guint        posting_list_size             (PostingList *posting_list);
-void         posting_list_add              (PostingList *posting_list, gint doc_id, gint pos);
-PostingPair *posting_list_nth              (PostingList *posting_list, guint idx);
+PostingList *posting_list_new   (void);
+PostingList *posting_list_copy  (PostingList *posting_list);
+guint        posting_list_size  (PostingList *posting_list);
+void         posting_list_add   (PostingList *posting_list, guint32 doc_id, gint32 pos);
+PostingPair *posting_list_check (PostingList *posting_list, guint32 doc_id, gint32 pos);
 PostingList *posting_list_select_successor (PostingList *base_list,
                                             PostingList *successor_list,
                                             guint offset);

@@ -19,6 +19,7 @@ test_tokenizer_new (void)
 
     tok = tokenizer_new(sample_string1);
     cut_assert_not_null(tok);
+    tokenizer_free(tok);
 }
 
 void
@@ -28,6 +29,7 @@ test_tokenizer_new2 (void)
 
     tok = tokenizer_new2(sample_string2, strlen(sample_string1));
     cut_assert_not_null(tok);
+    tokenizer_free(tok);
 }
 
 void
@@ -41,4 +43,5 @@ test_tokenizer_next (void)
     cut_assert_equal_string("ペン", tokenizer_next(tok));
     cut_assert_equal_string("です", tokenizer_next(tok));
     cut_assert_equal_string("。"  , tokenizer_next(tok));
+    tokenizer_free(tok);
 }

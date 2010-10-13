@@ -1,5 +1,5 @@
-#include <cutter.h>
-#include <inv-index.h>
+
+#include "test.h"
 
 void test_phrase_new (void);
 void test_phrase_append (void);

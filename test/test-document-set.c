@@ -1,7 +1,6 @@
 // -*- coding: utf-8 -*-
 
-#include <cutter.h>
-#include <inv-index.h>
+#include "test.h"
 
 static const gchar *test_data_file;
 

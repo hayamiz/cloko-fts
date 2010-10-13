@@ -1,15 +1,16 @@
 
 noinst_LTLIBRARIES =				\
 	test_inv_index.la			\
-	test_document_set.la
+	test_document_set.la			\
+	test_doc_tokenizer.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
 LDFLAGS = -module -rpath $(libdir) -avoid-version -no-undefined
 
 test_inv_index_la_SOURCES = test-inv-index.c
-
 test_document_set_la_SOURCES = test-document-set.c
+test_doc_tokenizer_la_SOURCES = test-doc-tokenizer.c
 
 INCLUDES = $(CUTTER_CFLAGS) -I$(top_srcdir)/src
 LIBS = $(CUTTER_LIBS) $(top_builddir)/src/libinv_index.la

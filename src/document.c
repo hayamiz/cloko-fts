@@ -48,7 +48,6 @@ document_parse (const gchar *text, guint offset, gint doc_id, const gchar **endp
     }
     doc->size = next_ptr - (text + offset);
     doc->body_size = next_ptr - ptr;
-    g_printerr("body_size = %d\n", next_ptr - ptr);
 
     *endptr = next_ptr + 5;
 

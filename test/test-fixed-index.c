@@ -136,7 +136,6 @@ test_fixed_index_phrase_get (void)
 void
 test_fixed_index_load_dump (void)
 {
-    cut_omit("omit");
     InvIndex *inv_index = inv_index_new();
     FixedIndex *fixed_index = fixed_index_new(inv_index);
     inv_index_free(inv_index);

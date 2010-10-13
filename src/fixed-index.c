@@ -81,16 +81,71 @@ fixed_index_phrase_get (FixedIndex *findex, Phrase *phrase)
     return base_list;
 }
 
-void
+static void
+dump_ghash_func(gpointer key, gpointer val, gpointer data)
+{
+    FILE *fp = (FILE *)data;
+    const gchar *term = (const gchar *) key;
+    FixedPostingList *fplist = (FixedPostingList *) val;
+
+    guint32 termlen = strlen(term) + 1;
+    guint32 fplistlen = fixed_posting_list_size(fplist);
+    fwrite(&termlen, sizeof(guint32), 1, fp);
+    fwrite(term, sizeof(gchar), termlen, fp);
+
+    fwrite(&fplistlen, sizeof(guint32), 1, fp);
+    fwrite(fplist->pairs, sizeof(PostingPair), fplistlen, fp);
+}
+
+FixedIndex *
 fixed_index_dump       (const gchar *path, FixedIndex *findex)
 {
-    // TODO
+    FILE *fp;
+
+    if ((fp = fopen(path, "w")) == NULL){
+        return NULL;
+    }
+    guint32 numterms = fixed_index_numterms(findex);
+    fwrite(&numterms, sizeof(guint32), 1, fp);
+    g_hash_table_foreach(findex->hash, dump_ghash_func, fp);
+    fclose(fp);
+
     return;
 }
 
 FixedIndex *
 fixed_index_load       (const gchar *path)
 {
-    // TODO
-    return NULL;
+    FILE *fp;
+    guint32 numterms;
+    guint32 termlen;
+    guint32 fplistlen;
+    gchar *term;
+    size_t sz;
+    FixedIndex *findex;
+    FixedPostingList *fplist;
+
+    findex = g_malloc(sizeof(FixedIndex));
+    findex->hash = g_hash_table_new(g_str_hash, g_str_equal);
+
+    if ((fp = fopen(path, "r")) == NULL){
+        return NULL;
+    }
+    sz = fread(&numterms, sizeof(guint32), 1, fp); if (sz != 1) return NULL;
+    for(;numterms > 0;numterms--){
+        sz = fread(&termlen, sizeof(guint32), 1, fp); if (sz != 1) return NULL;
+        term = g_malloc(sizeof(gchar) * termlen);
+        sz = fread(term, sizeof(gchar), termlen, fp); if (sz != termlen) return NULL;
+
+        sz = fread(&fplistlen, sizeof(guint32), 1, fp); if (sz != 1) return NULL;
+        fplist = g_malloc(sizeof(FixedPostingList));
+        fplist->size = fplistlen;
+        fplist->pairs = g_malloc(sizeof(PostingPair) * fplistlen);
+        sz = fread(fplist->pairs, sizeof(PostingPair), fplistlen, fp); if (sz != fplistlen) return NULL;
+
+        g_hash_table_insert(findex->hash, term, fplist);
+    }
+
+    fclose(fp);
+    return findex;
 }

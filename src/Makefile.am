@@ -1,5 +1,5 @@
-# lib_LTLIBRARIES = libinv_index.la
-noinst_LTLIBRARIES = libinv_index.la
+lib_LTLIBRARIES = libinv_index.la
+# noinst_LTLIBRARIES = libinv_index.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
@@ -12,7 +12,8 @@ libinv_index_la_SOURCES =			\
 	document.c				\
 	tokenizer.c				\
 	fixed-posting-list.c			\
-	fixed-index.c
+	fixed-index.c				\
+	doc-id-list.c
 
 bin_PROGRAMS = fts-node
 

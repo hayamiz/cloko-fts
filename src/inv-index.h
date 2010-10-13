@@ -35,6 +35,8 @@ typedef struct _Phrase {
     gchar **terms;
 } Phrase;
 
+typedef struct _DocIdList DocIdList;
+
 typedef struct _PostingPair {
     guint32 doc_id;
     gint32 pos;
@@ -113,6 +115,12 @@ PostingPair      *fixed_posting_list_check (FixedPostingList *fixed_posting_list
 FixedPostingList *fixed_posting_list_select_successor (FixedPostingList *base_list,
                                                        FixedPostingList *successor_list,
                                                        guint offset);
+
+DocIdList *doc_id_list_new(FixedPostingList *fplist);
+DocIdList *doc_id_list_free(DocIdList *list);
+guint      doc_id_list_size(DocIdList *list);
+DocIdList *doc_id_list_intersect(DocIdList* list1, DocIdList* list2);
+gboolean   doc_id_list_check(DocIdList *list, guint doc_id);
 
 FixedIndex       *fixed_index_new        (InvIndex *inv_index);
 void              fixed_index_free       (FixedIndex *fixed_index);

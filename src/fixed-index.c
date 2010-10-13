@@ -110,7 +110,7 @@ fixed_index_dump       (FixedIndex *findex, const gchar *path)
     g_hash_table_foreach(findex->hash, dump_ghash_func, fp);
     fclose(fp);
 
-    return;
+    return findex;
 }
 
 FixedIndex *

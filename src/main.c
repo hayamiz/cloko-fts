@@ -7,11 +7,14 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+typedef struct process_env process_env_t;
+
 void parse_args (gint *args, gchar ***argv);
 void run (void);
 void *child_thread_func (void *data);
 void *heartbeat_thread_func (void *data);
 gchar *get_hostname (void);
+void process_query(const gchar *query, process_env_t *env);
 
 static gboolean exit_flag = FALSE;
 static const gchar *hostname;
@@ -25,6 +28,17 @@ static struct {
     gint port;
     gboolean daemon;
 } option;
+
+struct process_env {
+    GSocketConnection *sock;
+    GAsyncQueue *queue;
+    guint child_num;
+};
+
+typedef struct query_result {
+    guint size;
+    const gchar *retstr;
+} query_result_t;
 
 static GOptionEntry entries[] =
 {
@@ -42,6 +56,9 @@ typedef struct _child_thread_arg_t {
     const gchar *child_host_id;
     pthread_mutex_t *sock_mutex;
     GSocketConnection *sock;
+    pthread_barrier_t *barrier;
+    const gchar **query;
+    GAsyncQueue *queue;
 } child_thread_arg_t;
 
 typedef struct _heartbeat_arg_t {
@@ -103,16 +120,20 @@ run(void)
     heartbeat_arg_t hb_arg;
     pthread_t *child_threads = NULL;
     pthread_mutex_t *child_sock_mutexes = NULL;
+    pthread_barrier_t barrier;
     child_thread_arg_t *child_thread_args = NULL;
     guint child_num = 0;
     gchar **child_ids = NULL;
     gint i;
+    GAsyncQueue *queue = g_async_queue_new();
+    const gchar *query;
 
     if (option.network != NULL && strcmp("none", option.network) != 0){
         child_ids = g_strsplit(option.network, ",", 0);
         for(i = 0;child_ids[i] != NULL;i++){
             child_num++;
         }
+        pthread_barrier_init(&barrier, NULL, child_num + 1);
         child_threads = g_malloc(sizeof(pthread_t) * child_num);
         child_sock_mutexes = g_malloc(sizeof(pthread_mutex_t) * child_num);
         child_thread_args = g_malloc(sizeof(child_thread_arg_t) * child_num);
@@ -122,6 +143,8 @@ run(void)
             pthread_mutex_init(&child_sock_mutexes[i], NULL);
             arg->sock_mutex = &child_sock_mutexes[i];
             arg->child_host_id = child_ids[i];
+            arg->query = &query;
+            arg->queue = queue;;
             pthread_create(&child_threads[i], NULL, child_thread_func, arg);
         }
 
@@ -152,15 +175,36 @@ run(void)
         g_string_append_len(buf, readbuf, sz);
         if (strncmp("HTBT\n", buf->str, 5) == 0){
             g_printerr("heartbeat command received.\n");
+            g_string_erase(buf, 0, 5);
         } else if (strncmp("QUIT\n", buf->str, 5) == 0){
             g_printerr("quit command received.\n");
+            g_string_erase(buf, 0, 5);
             break;
+        } else if (strncmp("QURY ", buf->str, 5) == 0){
+            g_string_erase(buf, 0, 5);
+            const gchar *q_end = index(buf->str, '\n');
+            query = g_strndup(buf->str, (q_end - query) * sizeof(gchar));
+            g_string_erase(buf, 0, (q_end - query) * sizeof(gchar));
+            pthread_barrier_wait(&barrier);
+
+            process_env_t env;
+            env.sock = sock;
+            env.queue = queue;
+            env.child_num = child_num;
+            process_query(query, &env);
         }
     }
     g_input_stream_close(stream, NULL, NULL);
 }
 
-
+void
+process_query (const gchar *query, process_env_t *env)
+{
+    query_result_t *ret;
+    query_result_t *tmp;
+    FixedPostingList *base_list = NULL;
+    FixedPostingList *tmp_list;
+}
 
 void *
 child_thread_func (void *data)
@@ -170,9 +214,9 @@ child_thread_func (void *data)
     GSocketClient *client;
     GOutputStream *stream;
     GString *child_hostname = g_string_new("");
+    g_async_queue_ref(arg->queue);
     g_string_sprintf(child_hostname, "cloko%s.sc.iis.u-tokyo.ac.jp", arg->child_host_id);
     client = g_socket_client_new();
-    
     gint retry;
     pthread_mutex_lock(arg->sock_mutex);
     for(retry = 0;;retry++){
@@ -196,6 +240,7 @@ child_thread_func (void *data)
     stream = g_io_stream_get_output_stream(G_IO_STREAM(conn));
     g_output_stream_write_all(stream, "QUIT\n", 5, NULL, NULL, NULL);
     pthread_mutex_unlock(arg->sock_mutex);
+    g_async_queue_unref(arg->queue);
 }
 
 void *
@@ -277,6 +322,11 @@ main (gint argc, gchar **argv)
                 inv_index_add_term(inv_index, term, doc_id, pos++);
             }
             tokenizer_free(tok);
+            pos = 0;
+            tok = tokenizer_new(document_title(doc));
+            while((term = tokenizer_next(tok)) != NULL){
+                inv_index_add_term(inv_index, term, doc_id, G_MININT + (pos++));
+            }
         }
         g_timer_stop(timer);
         g_print("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",
@@ -290,6 +340,11 @@ main (gint argc, gchar **argv)
         findex = fixed_index_new(inv_index);
         g_timer_stop(timer);
         g_print("%s: packed: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+
+        if (inv_index_numterms(inv_index) != fixed_index_numterms(findex)){
+            g_print("%s: invalid packed index\n", hostname);
+            exit(EXIT_FAILURE);
+        }
 
         if (option.save_index){
             g_timer_start(timer);

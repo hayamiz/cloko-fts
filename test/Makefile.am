@@ -4,7 +4,8 @@ noinst_LTLIBRARIES =				\
 	test_document_set.la			\
 	test_doc_tokenizer.la			\
 	test_fixed_posting_list.la		\
-	test_fixed_index.la
+	test_fixed_index.la			\
+	test_doc_id_list.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
@@ -15,6 +16,7 @@ test_document_set_la_SOURCES = test-document-set.c
 test_doc_tokenizer_la_SOURCES = test-doc-tokenizer.c
 test_fixed_posting_list_la_SOURCES = test-fixed-posting-list.c
 test_fixed_index_la_SOURCES = test-fixed-index.c
+test_doc_id_list_la_SOURCES = test-doc-id-list.c
 
 INCLUDES = $(CUTTER_CFLAGS) -I$(top_srcdir)/src
 LIBS = $(CUTTER_LIBS) $(top_builddir)/src/libinv_index.la

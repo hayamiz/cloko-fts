@@ -119,7 +119,7 @@ void              fixed_index_free       (FixedIndex *fixed_index);
 int               fixed_index_numterms   (FixedIndex *fixed_index);
 FixedPostingList *fixed_index_get        (FixedIndex *fixed_index, const gchar *term);
 FixedPostingList *fixed_index_phrase_get (FixedIndex *fixed_index, Phrase *phrase);
-FixedIndex       *fixed_index_dump       (const gchar *path, FixedIndex *fixed_index);
+FixedIndex       *fixed_index_dump       (FixedIndex *fixed_index, const gchar *path);
 FixedIndex       *fixed_index_load       (const gchar *path);
 
 #endif

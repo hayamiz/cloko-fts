@@ -3,19 +3,19 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <gio/gio.h>
-#include <sys/fcntl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 void parse_args (gint *args, gchar ***argv);
 void run (void);
 void *child_thread_func (void *data);
 void *heartbeat_thread_func (void *data);
+gchar *get_hostname (void);
 
 static gboolean exit_flag = FALSE;
+static const gchar *hostname;
+static FixedIndex *findex = NULL;
 
 static struct {
     const gchar *datafile;
@@ -23,6 +23,7 @@ static struct {
     const gchar *load_index;
     const gchar *network;
     gint port;
+    gboolean daemon;
 } option;
 
 static GOptionEntry entries[] =
@@ -30,6 +31,7 @@ static GOptionEntry entries[] =
     { "datafile", 'd', 0, G_OPTION_ARG_STRING, &option.datafile, "", "FILE" },
     { "save-index", 'o', 0, G_OPTION_ARG_STRING, &option.save_index, "", "FILE" },
     { "load-index", 'i', 0, G_OPTION_ARG_STRING, &option.load_index, "", "FILE" },
+    { "daemon", 'D', 0, G_OPTION_ARG_NONE, &option.daemon, "", "FILE" },
     { "network", 'n', 0, G_OPTION_ARG_STRING, &option.network, "host numbers (ex. 000,001) or 'none'", "HOSTS" },
     { "port", 'p', 0, G_OPTION_ARG_INT, &option.network, "port number", "PORT" },
     { NULL }
@@ -58,6 +60,7 @@ parse_args (gint *argc, gchar ***argv)
     option.load_index = NULL;
     option.network = NULL;
     option.port    = 30001;
+    option.daemon  = FALSE;
 
     context = g_option_context_new ("- test tree model performance");
     g_option_context_add_main_entries (context, entries, NULL);
@@ -69,6 +72,17 @@ parse_args (gint *argc, gchar ***argv)
 
     if (option.datafile == NULL){
         g_printerr ("--datafile required\n");
+        goto failure;
+    } else {
+        if (access(option.datafile, F_OK) != 0){
+            g_printerr("No such file or directory: %s\n", option.datafile);
+            goto failure;
+        }
+    }
+
+    if (option.load_index &&
+        access(option.load_index, F_OK) != 0){
+        g_printerr("No such file or directory: %s\n", option.load_index);
         goto failure;
     }
 
@@ -155,8 +169,8 @@ child_thread_func (void *data)
     GSocketConnection *conn;
     GSocketClient *client;
     GOutputStream *stream;
-    GString *hostname = g_string_new("");
-    g_string_sprintf(hostname, "cloko%s.sc.iis.u-tokyo.ac.jp", arg->child_host_id);
+    GString *child_hostname = g_string_new("");
+    g_string_sprintf(child_hostname, "cloko%s.sc.iis.u-tokyo.ac.jp", arg->child_host_id);
     client = g_socket_client_new();
     
     gint retry;
@@ -166,7 +180,7 @@ child_thread_func (void *data)
             exit(EXIT_FAILURE);
         }
         conn = g_socket_client_connect_to_host(client,
-                                               hostname->str,
+                                               child_hostname->str,
                                                option.port,
                                                NULL, NULL);
         if (conn) break;
@@ -207,6 +221,8 @@ heartbeat_thread_func (void *data)
     }
 }
 
+
+
 gint
 main (gint argc, gchar **argv)
 {
@@ -216,40 +232,98 @@ main (gint argc, gchar **argv)
 #endif
     g_type_init();
 
-    parse_args(&argc, &argv);
-
-    run();
-
-    return 0;
-
-    DocumentSet *docset = document_set_load(argv[1]);
-    InvIndex *inv_index = inv_index_new();
-    g_print("== docset ==\n  path: %s\n  # of documents: %d\n",
-            argv[1], document_set_size(docset));
-
-    guint idx;
-    guint sz = document_set_size(docset);
-    for(idx = 0;idx < sz;idx++){
-        Document *doc = document_set_nth(docset, idx);
-        Tokenizer *tok = tokenizer_new2(document_body_pointer(doc),
-                                        document_body_size(doc));
-        const gchar *term;
-        guint pos = 0;
-        gint doc_id = document_id(doc);
-        if (doc_id % 1000 == 0){
-            g_print("%d documents indexed: %d terms.\n",
-                    doc_id,
-                    inv_index_numterms(inv_index));
-        }
-        while((term = tokenizer_next(tok)) != NULL){
-            inv_index_add_term(inv_index, term, doc_id, pos++);
-        }
-
-        tokenizer_free(tok);
+    hostname = g_malloc(sizeof(gchar) * 256);
+    if (gethostname(hostname, 255) != 0){
+        g_printerr("failed to get hostname.\n");
+        hostname = "";
     }
 
-    g_print("indexed.\n");
-    inv_index_free(inv_index);
+    parse_args(&argc, &argv);
+
+    InvIndex *inv_index;
+    GTimer *timer;
+    DocumentSet *docset;
+
+    g_print("%s: start loading document %s\n", hostname, option.datafile);
+    timer = g_timer_new();
+    g_timer_start(timer);
+    docset = document_set_load(option.datafile);
+    g_timer_stop(timer);
+
+    g_print("%s: document loaded: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+    g_print("%s: path: %s, # of documents: %d\n",
+               hostname, option.datafile, document_set_size(docset));
+
+    if (!option.load_index){
+        inv_index = inv_index_new();
+        guint idx;
+        guint sz = document_set_size(docset);
+
+        g_timer_start(timer);
+        for(idx = 0;idx < sz;idx++){
+            Document *doc = document_set_nth(docset, idx);
+            Tokenizer *tok = tokenizer_new2(document_body_pointer(doc),
+                                            document_body_size(doc));
+            const gchar *term;
+            guint pos = 0;
+            gint doc_id = document_id(doc);
+            if (doc_id > 0 && doc_id % 5000 == 0){
+                g_print("%s: %d documents indexed: %d terms.\n",
+                        hostname,
+                        doc_id,
+                        inv_index_numterms(inv_index));
+            }
+            while((term = tokenizer_next(tok)) != NULL){
+                inv_index_add_term(inv_index, term, doc_id, pos++);
+            }
+            tokenizer_free(tok);
+        }
+        g_timer_stop(timer);
+        g_print("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",
+                hostname,
+                g_timer_elapsed(timer, NULL),
+                hostname,
+                inv_index_numterms(inv_index));
+
+        g_print("%s: packing index\n", hostname);
+        g_timer_start(timer);
+        findex = fixed_index_new(inv_index);
+        g_timer_stop(timer);
+        g_print("%s: packed: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+
+        if (option.save_index){
+            g_timer_start(timer);
+            if (fixed_index_dump(findex, option.save_index) == NULL){
+                g_print("%s: failed to save index to '%s'\n",
+                        hostname,
+                        option.save_index);
+                exit(EXIT_FAILURE);
+            }
+            if (chmod(option.save_index, S_IRUSR) != 0){
+                g_print("%s: failed to chmod index '%s'\n",
+                        hostname,
+                        option.save_index);
+                exit(EXIT_FAILURE);
+            }
+            g_timer_stop(timer);
+            g_print("%s: save index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+        }
+        inv_index_free(inv_index);
+    } else {
+        g_timer_start(timer);
+        if ((findex = fixed_index_load(option.load_index)) == NULL){
+            g_print("%s: failed to load index from '%s'\n",
+                    hostname,
+                    option.load_index);
+            exit(EXIT_FAILURE);
+        }
+        g_timer_stop(timer);
+        g_print("%s: load index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+    }
+
+    if (option.daemon){
+        run();
+    }
 
     return 0;
 }

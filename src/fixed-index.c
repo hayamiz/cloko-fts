@@ -98,7 +98,7 @@ dump_ghash_func(gpointer key, gpointer val, gpointer data)
 }
 
 FixedIndex *
-fixed_index_dump       (const gchar *path, FixedIndex *findex)
+fixed_index_dump       (FixedIndex *findex, const gchar *path)
 {
     FILE *fp;
 

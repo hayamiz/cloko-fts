@@ -139,7 +139,7 @@ test_fixed_index_load_dump (void)
     InvIndex *inv_index = inv_index_new();
     FixedIndex *fixed_index = fixed_index_new(inv_index);
     inv_index_free(inv_index);
-    fixed_index_dump("/tmp/fixed_index.dump", fixed_index);
+    fixed_index_dump(fixed_index, "/tmp/fixed_index.dump");
     fixed_index_free(fixed_index);
 
     fixed_index = fixed_index_load("/tmp/fixed_index.dump");
@@ -147,7 +147,7 @@ test_fixed_index_load_dump (void)
     cut_assert_equal_uint(0, fixed_index_numterms(fixed_index));
     fixed_index_free(fixed_index);
 
-    fixed_index_dump("/tmp/fixed_index.dump", sample_fixed_index);
+    fixed_index_dump(sample_fixed_index, "/tmp/fixed_index.dump");
     fixed_index = fixed_index_load("/tmp/fixed_index.dump");
 
     FixedPostingList *fplist;

@@ -464,7 +464,7 @@ main (gint argc, gchar **argv)
             sz = option.doc_limit;
         }
 
-        Tokenizer *tok
+        Tokenizer *tok;
         g_timer_start(timer);
         for(idx = 0;idx < sz;idx++){
             Document *doc = document_set_nth(docset, idx);

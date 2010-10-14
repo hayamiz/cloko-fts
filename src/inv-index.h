@@ -82,6 +82,8 @@ const gchar *document_set_buffer (DocumentSet *docset);
 
 Tokenizer   *tokenizer_new  (const gchar *str);
 Tokenizer   *tokenizer_new2 (const gchar *str, guint len);
+Tokenizer   *tokenizer_renew  (Tokenizer *tok, const gchar *str);
+Tokenizer   *tokenizer_renew2 (Tokenizer *tok, const gchar *str, guint len);
 void         tokenizer_free (Tokenizer *tok);
 const gchar *tokenizer_next (Tokenizer *tok);
 

@@ -315,7 +315,10 @@ child_thread_func (void *data)
     gint retry;
     pthread_mutex_lock(arg->sock_mutex);
     for(retry = 0;;retry++){
-        if (retry > 5){
+        if (retry > 100){
+            g_printerr("%s: cannot connect to child %s\n",
+                       hostname,
+                       child_hostname->str);
             exit(EXIT_FAILURE);
         }
         conn = g_socket_client_connect_to_host(client,
@@ -461,30 +464,31 @@ main (gint argc, gchar **argv)
             sz = option.doc_limit;
         }
 
+        Tokenizer *tok
         g_timer_start(timer);
         for(idx = 0;idx < sz;idx++){
             Document *doc = document_set_nth(docset, idx);
-            Tokenizer *tok = tokenizer_new2(document_body_pointer(doc),
-                                            document_body_size(doc));
+            tok = tokenizer_renew2(tok,
+                                   document_body_pointer(doc),
+                                   document_body_size(doc));
             const gchar *term;
             guint pos = 0;
             gint doc_id = document_id(doc);
-            if (doc_id > 0 && doc_id % 5000 == 0){
-                g_print("%s: %d documents indexed: %d terms.\n",
+            if (doc_id % 5000 == 0){
+                g_print("%s: %d/%d documents indexed: %d terms.\n",
                         hostname,
                         doc_id,
+                        document_set_size(docset),
                         inv_index_numterms(inv_index));
             }
             while((term = tokenizer_next(tok)) != NULL){
                 inv_index_add_term(inv_index, term, doc_id, pos++);
             }
-            tokenizer_free(tok);
             pos = 0;
-            tok = tokenizer_new(document_title(doc));
+            tok = tokenizer_renew(tok, document_title(doc));
             while((term = tokenizer_next(tok)) != NULL){
                 inv_index_add_term(inv_index, term, doc_id, G_MININT + (pos++));
             }
-            tokenizer_free(tok);
         }
         g_timer_stop(timer);
         g_print("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",

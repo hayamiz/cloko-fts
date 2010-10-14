@@ -48,7 +48,13 @@ tokenizer_next (Tokenizer *tok)
         tok->cur_node = tok->cur_node->next;
     }
 
-    const gchar *term = g_strndup(node->surface, node->length);
+    const gchar *term;
+    if (node->length > 0){
+        term = g_strndup(node->surface, node->length);
+    } else {
+        term = NULL;
+    }
     tok->cur_node = node->next;
+
     return term;
 }

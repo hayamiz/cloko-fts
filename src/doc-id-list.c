@@ -4,7 +4,8 @@
 DocIdList *
 doc_id_list_new(FixedPostingList *fplist)
 {
-    // TODO
+    DocIdList *dlist = g_malloc(sizeof(DocIdList));
+    
     return NULL;
 }
 
@@ -12,7 +13,7 @@ guint
 doc_id_list_size(DocIdList *dlist)
 {
     // TODO
-    return NULL;
+    return 0;
 }
 
 DocIdList *doc_id_list_free(DocIdList *list)
@@ -30,6 +31,6 @@ DocIdList *doc_id_list_intersect(DocIdList* list1, DocIdList* list2)
 gboolean   doc_id_list_check(DocIdList *list, guint doc_id)
 {
     // TODO
-    return NULL;
+    return FALSE;
 }
 

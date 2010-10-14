@@ -59,7 +59,7 @@ fixed_index_phrase_get (FixedIndex *findex, Phrase *phrase)
         return fixed_index_get(findex, phrase_nth(phrase, 0));
 
     FixedPostingList *base_list = fixed_index_get(findex, phrase_nth(phrase, 0));
-    FixedPostingList *succ_list;
+    FixedPostingList *succ_list = NULL;
     guint phrase_idx;
     guint sz = phrase_size(phrase);
     if (base_list == NULL) {

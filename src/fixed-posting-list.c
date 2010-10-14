@@ -75,6 +75,9 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
                                      FixedPostingList *succ_list,
                                      guint offset)
 {
+    if (!base_list) return NULL;
+    if (!succ_list) return NULL;
+
     PostingPair *p1, *p2;
     PostingPair *p1_sentinel, *p2_sentinel;
     FixedPostingList *fplist;

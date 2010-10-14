@@ -19,6 +19,7 @@ void process_query(const gchar *query, process_env_t *env);
 static gboolean exit_flag = FALSE;
 static const gchar *hostname;
 static FixedIndex *findex = NULL;
+static DocumentSet *docset;
 
 static struct {
     const gchar *datafile;
@@ -27,6 +28,7 @@ static struct {
     const gchar *network;
     gint port;
     gboolean daemon;
+    gint doc_limit;
 } option;
 
 struct process_env {
@@ -37,7 +39,7 @@ struct process_env {
 
 typedef struct query_result {
     guint size;
-    const gchar *retstr;
+    gchar *retstr;
 } query_result_t;
 
 static GOptionEntry entries[] =
@@ -48,6 +50,7 @@ static GOptionEntry entries[] =
     { "daemon", 'D', 0, G_OPTION_ARG_NONE, &option.daemon, "", "FILE" },
     { "network", 'n', 0, G_OPTION_ARG_STRING, &option.network, "host numbers (ex. 000,001) or 'none'", "HOSTS" },
     { "port", 'p', 0, G_OPTION_ARG_INT, &option.network, "port number", "PORT" },
+    { "doc-limit", 'l', 0, G_OPTION_ARG_INT, &option.doc_limit, "", "NUM" },
     { NULL }
 };
 
@@ -78,6 +81,7 @@ parse_args (gint *argc, gchar ***argv)
     option.network = NULL;
     option.port    = 30001;
     option.daemon  = FALSE;
+    option.doc_limit = -1;
 
     context = g_option_context_new ("- test tree model performance");
     g_option_context_add_main_entries (context, entries, NULL);
@@ -145,13 +149,16 @@ run(void)
             arg->child_host_id = child_ids[i];
             arg->query = &query;
             arg->queue = queue;;
+            arg->barrier = &barrier;
             pthread_create(&child_threads[i], NULL, child_thread_func, arg);
         }
 
         heartbeat_thread = g_malloc(sizeof(pthread_t));
         hb_arg.child_num = child_num;
         hb_arg.args = child_thread_args;
-        pthread_create(heartbeat_thread, NULL, heartbeat_thread_func, &hb_arg);
+        // pthread_create(heartbeat_thread, NULL, heartbeat_thread_func, &hb_arg);
+    } else {
+        pthread_barrier_init(&barrier, NULL, 1);
     }
 
     GSocketListener *listener = g_socket_listener_new();
@@ -159,32 +166,44 @@ run(void)
 
     g_printerr("Start listening on port %d.\n", option.port);
 
-    GSocketConnection *sock = g_socket_listener_accept(listener, NULL, NULL, NULL);
-    GInetSocketAddress *remote_addr =
-        G_INET_SOCKET_ADDRESS(g_socket_connection_get_remote_address(sock, NULL));
-    GInputStream *stream;
+    GSocketConnection *sock;
+    GInetSocketAddress *remote_addr;
     gchar readbuf[4096];
-    GString *buf = g_string_new("");
+    GString *buf;
+    GInputStream *stream;
     gssize sz;
+    const gchar *ptr;
+accept_again:
+    sock = g_socket_listener_accept(listener, NULL, NULL, NULL);
+    remote_addr = G_INET_SOCKET_ADDRESS(g_socket_connection_get_remote_address(sock, NULL));
+        buf = g_string_new("");
     g_printerr("Accepted connection from %s\n",
                g_inet_address_to_string(g_inet_socket_address_get_address(remote_addr)));
-    g_socket_listener_close(listener);
 
     stream = g_io_stream_get_input_stream(G_IO_STREAM(sock));
     while((sz = g_input_stream_read(stream, readbuf, 4096, NULL, NULL)) != 0){
         g_string_append_len(buf, readbuf, sz);
+        if ((ptr = index(buf->str, '\n')) == NULL){
+            continue;
+        }
+        g_printerr("==== %s: received: ====\n", hostname);
+    retry:
         if (strncmp("HTBT\n", buf->str, 5) == 0){
-            g_printerr("heartbeat command received.\n");
+            // g_printerr("heartbeat command received.\n");
             g_string_erase(buf, 0, 5);
         } else if (strncmp("QUIT\n", buf->str, 5) == 0){
-            g_printerr("quit command received.\n");
+            g_printerr("==== %s: QUIT command ====\n", hostname);
             g_string_erase(buf, 0, 5);
-            break;
-        } else if (strncmp("QURY ", buf->str, 5) == 0){
+            exit_flag = TRUE;
+            pthread_barrier_wait(&barrier);
+
+            goto quit;
+        } else if (strncmp("QURY ", buf->str, 5) == 0 && index(buf->str, '\n') != NULL){
+            g_printerr("==== %s: QURY command ====\n", hostname);
             g_string_erase(buf, 0, 5);
-            const gchar *q_end = index(buf->str, '\n');
-            query = g_strndup(buf->str, (q_end - query) * sizeof(gchar));
-            g_string_erase(buf, 0, (q_end - query) * sizeof(gchar));
+            const gchar *q_end = strstr(buf->str, "\"\n");
+            query = g_strndup(buf->str, (q_end - buf->str) * sizeof(gchar));
+            g_string_erase(buf, 0, ((q_end + 2) - buf->str) * sizeof(gchar));
             pthread_barrier_wait(&barrier);
 
             process_env_t env;
@@ -192,18 +211,93 @@ run(void)
             env.queue = queue;
             env.child_num = child_num;
             process_query(query, &env);
+        } else {
+            if ((ptr = index(buf->str, '\n')) != NULL){
+                g_string_erase(buf, 0, ((ptr + 1) - buf->str) * sizeof(gchar));
+            }
+            continue;
         }
+        goto retry;
     }
+
+    g_string_free(buf, TRUE);
+    goto accept_again;
+    
+quit:
+    g_socket_listener_close(listener);
     g_input_stream_close(stream, NULL, NULL);
+    for(i = 0;i < child_num;i++){
+        pthread_join(child_threads[i], NULL);
+    }
 }
 
 void
 process_query (const gchar *query, process_env_t *env)
 {
-    query_result_t *ret;
+    g_printerr("==== %s: process_query ====\n", hostname);
+
+    query_result_t ret;
     query_result_t *tmp;
     FixedPostingList *base_list = NULL;
     FixedPostingList *tmp_list;
+    GRegex *regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
+    GMatchInfo *match_info = NULL;
+
+    gchar **phrases = g_strsplit(query + 1, "\" \"", 0);
+    guint i = 0;
+
+    gchar *phrase_str;
+    gchar **phrases_ptr = phrases;
+    const gchar *term;
+    while(*phrases_ptr != NULL){
+        phrase_str = *phrases_ptr;
+        Phrase *phrase = phrase_new();
+        Tokenizer *tok = tokenizer_new(phrase_str);
+        while((term = tokenizer_next(tok)) != NULL){
+            phrase_append(phrase, term);
+        }
+
+        tmp_list = fixed_index_phrase_get(findex, phrase);
+        base_list = fixed_posting_list_doc_intersect(base_list, tmp_list);
+
+        phrases_ptr++;
+    }
+
+    GString *buf = g_string_new("");
+    guint sz;
+    PostingPair *pair;
+    if (base_list){
+        pair = base_list->pairs;
+        ret.size = sz = fixed_posting_list_size(base_list);
+        for(i = 0;i < sz;i++){
+            g_string_append(buf, document_raw_record(document_set_nth(docset, pair->doc_id)));
+            pair++;
+        }
+    } else {
+        ret.size = 0;
+    }
+
+    g_printerr("==== %s: process_query: aggregating children's results ====\n", hostname);
+    for(i = 0;i < env->child_num;i++){
+        tmp = (query_result_t *)g_async_queue_pop(env->queue);
+        ret.size += tmp->size;
+        g_string_append(buf, tmp->retstr);
+        g_free(tmp->retstr);
+        g_free(tmp);
+    }
+    g_printerr("==== %s: process_query: aggregated ====\n", hostname);
+
+    // g_print("# <query_id> %d\n", ret.size);
+    // printf(buf->str);
+    GString *header = g_string_new("");
+    g_string_sprintf(header,
+                     "RSLT %d %d\n", ret.size, buf->len);
+    GOutputStream *os = g_io_stream_get_output_stream(G_IO_STREAM(env->sock));
+    g_output_stream_write_all(os, header->str, header->len, NULL, NULL, NULL);
+    g_output_stream_write_all(os, buf->str, buf->len, NULL, NULL, NULL);
+    g_output_stream_write_all(os, "\n", 1, NULL, NULL, NULL);
+    g_string_free(header, TRUE);
+    g_string_free(buf, TRUE);
 }
 
 void *
@@ -213,6 +307,7 @@ child_thread_func (void *data)
     GSocketConnection *conn;
     GSocketClient *client;
     GOutputStream *stream;
+    GInputStream *is;
     GString *child_hostname = g_string_new("");
     g_async_queue_ref(arg->queue);
     g_string_sprintf(child_hostname, "cloko%s.sc.iis.u-tokyo.ac.jp", arg->child_host_id);
@@ -234,12 +329,71 @@ child_thread_func (void *data)
     arg->sock = conn;
     pthread_mutex_unlock(arg->sock_mutex);
 
-    g_usleep(1000000);
-
-    pthread_mutex_lock(arg->sock_mutex);
+    GString *buf = g_string_new("");
+    GString *tmpbuf = g_string_new("");
+    gchar readbuf[4096];
+    query_result_t *ret;
+    guint sz;
+    const gchar *ptr;
+    gchar *endptr;
+    guint bytes;
+    
     stream = g_io_stream_get_output_stream(G_IO_STREAM(conn));
-    g_output_stream_write_all(stream, "QUIT\n", 5, NULL, NULL, NULL);
-    pthread_mutex_unlock(arg->sock_mutex);
+    is = g_io_stream_get_input_stream(G_IO_STREAM(conn));
+    buf = g_string_new("");
+
+    for(;;){
+        pthread_barrier_wait(arg->barrier);
+        g_printerr("%s: thread %d passed barrier.\n", arg->id);
+        if (exit_flag){
+            pthread_mutex_lock(arg->sock_mutex);
+            g_output_stream_write_all(stream, "QUIT\n", 5, NULL, NULL, NULL);
+            pthread_mutex_unlock(arg->sock_mutex);
+            break;
+        }
+
+        // query arrived
+        tmpbuf = g_string_new("");
+        g_string_printf(tmpbuf, "QURY %s\"\n", *arg->query);
+        pthread_mutex_lock(arg->sock_mutex);
+        g_output_stream_write_all(stream, tmpbuf->str, tmpbuf->len, NULL, NULL, NULL);
+        pthread_mutex_unlock(arg->sock_mutex);
+        g_string_free(tmpbuf, TRUE);
+
+    retry:
+        while((ptr = index(buf->str, '\n')) == NULL){
+            sz = g_input_stream_read(is, readbuf, 4096, NULL, NULL);
+            if (sz == 0){
+                // connection closed.
+                exit(EXIT_FAILURE);
+            }
+            g_string_append_len(buf, readbuf, sz);
+        }
+        if (g_str_has_prefix(buf->str, "RSLT ")){
+            ret = g_malloc(sizeof(query_result_t));
+            ret->size = 0;
+            ret->retstr = NULL;
+            ret->size = strtol(buf->str + 5, &endptr, 10);
+            bytes = strtol(endptr, NULL, 10);
+            g_string_erase(buf, 0, ((ptr + 1) - buf->str) * sizeof(gchar));
+
+            while(buf->len < bytes + 1){
+                sz = g_input_stream_read(is, readbuf, 4096, NULL, NULL);
+                if (sz == 0){
+                    // connection closed.
+                    exit(EXIT_FAILURE);
+                }
+                g_string_append_len(buf, readbuf, sz);
+            }
+            ret->retstr = g_strndup(buf->str, bytes);
+            g_string_erase(buf, 0, bytes + 1);
+            g_async_queue_push(arg->queue, ret);
+        } else {
+            g_string_erase(buf, 0, ((ptr + 1) - buf->str) * sizeof(gchar));
+            goto retry;
+        }
+    }
+quit:
     g_async_queue_unref(arg->queue);
 }
 
@@ -287,7 +441,6 @@ main (gint argc, gchar **argv)
 
     InvIndex *inv_index;
     GTimer *timer;
-    DocumentSet *docset;
 
     g_print("%s: start loading document %s\n", hostname, option.datafile);
     timer = g_timer_new();
@@ -303,6 +456,10 @@ main (gint argc, gchar **argv)
         inv_index = inv_index_new();
         guint idx;
         guint sz = document_set_size(docset);
+
+        if (option.doc_limit > 0){
+            sz = option.doc_limit;
+        }
 
         g_timer_start(timer);
         for(idx = 0;idx < sz;idx++){
@@ -359,7 +516,7 @@ main (gint argc, gchar **argv)
                 g_print("%s: failed to chmod index '%s'\n",
                         hostname,
                         option.save_index);
-                exit(EXIT_FAILURE);
+                // exit(EXIT_FAILURE);
             }
             g_timer_stop(timer);
             g_print("%s: save index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));

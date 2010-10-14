@@ -66,14 +66,13 @@ const gchar *
 tokenizer_next (Tokenizer *tok)
 {
     const mecab_node_t *node = tok->cur_node;
-    if (node == NULL){
-        return NULL;
-    }
-
     while (node != NULL &&
            (node->stat == MECAB_BOS_NODE ||
             node->stat == MECAB_EOS_NODE)){
-        tok->cur_node = node->next;
+        node = node->next;
+    }
+    if (node == NULL){
+        return NULL;
     }
 
     const gchar *term;

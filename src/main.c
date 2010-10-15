@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/tcp.h>
 #include <errno.h>
 #include <netdb.h>
 
@@ -36,8 +37,11 @@ static struct {
     const gchar *network;
     const gchar *port;
     gboolean daemon;
+    gboolean relay;
     gint doc_limit;
     gint timeout;
+    gint tcp_nodelay;
+    gint tcp_cork;
 } option;
 
 struct process_env {
@@ -57,10 +61,15 @@ static GOptionEntry entries[] =
     { "datafile", 'd', 0, G_OPTION_ARG_STRING, &option.datafile, "", "FILE" },
     { "save-index", 'o', 0, G_OPTION_ARG_STRING, &option.save_index, "", "FILE" },
     { "load-index", 'i', 0, G_OPTION_ARG_STRING, &option.load_index, "", "FILE" },
-    { "daemon", 'D', 0, G_OPTION_ARG_NONE, &option.daemon, "", "FILE" },
+    { "daemon", 'D', 0, G_OPTION_ARG_NONE, &option.daemon, "", NULL },
+    { "relay", 'r', 0, G_OPTION_ARG_NONE, &option.relay, "", NULL },
     { "network", 'n', 0, G_OPTION_ARG_STRING, &option.network, "host numbers (ex. 000,001) or 'none'", "HOSTS" },
     { "timeout", 't', 0, G_OPTION_ARG_INT, &option.timeout, "Client connect timeout", "SECONDS" },
     { "port", 'p', 0, G_OPTION_ARG_STRING, &option.port, "port number", "PORT" },
+    { "tcp-nodelay", 'Z', 0, G_OPTION_ARG_INT, &option.tcp_nodelay,
+      "TCP_NODELAY: 0 -> disable, 1 -> enable (default: disabled)", "VAL" },
+    { "tcp-cork", 'Z', 0, G_OPTION_ARG_INT, &option.tcp_cork,
+      "TCP_CORK: 0 -> disable, 1 -> enable (default: disabled)", "VAL" },
     { "doc-limit", 'l', 0, G_OPTION_ARG_INT, &option.doc_limit, "", "NUM" },
     { NULL }
 };
@@ -88,6 +97,9 @@ parse_args (gint *argc, gchar ***argv)
     option.daemon  = FALSE;
     option.doc_limit = -1;
     option.timeout = 100;
+    option.tcp_nodelay = 0;
+    option.tcp_cork = 0;
+    option.relay = FALSE;
 
     context = g_option_context_new ("- test tree model performance");
     g_option_context_add_main_entries (context, entries, NULL);
@@ -97,13 +109,15 @@ parse_args (gint *argc, gchar ***argv)
         exit (EXIT_FAILURE);
     }
 
-    if (option.datafile == NULL){
-        g_printerr ("--datafile required\n");
-        goto failure;
-    } else {
-        if (access(option.datafile, F_OK) != 0){
-            g_printerr("No such file or directory: %s\n", option.datafile);
+    if (option.relay == FALSE){
+        if (option.datafile == NULL){
+            g_printerr ("--datafile required\n");
             goto failure;
+        } else {
+            if (access(option.datafile, F_OK) != 0){
+                g_printerr("No such file or directory: %s\n", option.datafile);
+                goto failure;
+            }
         }
     }
 
@@ -163,6 +177,7 @@ run(void)
     gint parent_sockfd;
     struct addrinfo hints;
     struct addrinfo *res;
+    gint on = 1;
 
     bzero(&hints, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
@@ -176,7 +191,6 @@ run(void)
         g_printerr("%s: socket failed: errno = %d\n", hostname, errno);
         exit(EXIT_FAILURE);
     }
-    gint on = 1;
     if (setsockopt(sockfd, SOL_SOCKET,
                    SO_REUSEADDR, (char * ) & on, sizeof (on)) != 0){
         g_printerr("%s: setsockopt failed.\n", hostname);
@@ -287,48 +301,48 @@ process_query (const gchar *query, process_env_t *env)
     Tokenizer *tok;
     const gchar *term;
 
-    g_printerr("==== %s: process_query ====\n", hostname);
     g_timer_start(env->timer);
 
     output_header = g_string_new("");
     output_body = g_string_new("");
-    regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
-    base_list = NULL;
-    tmp_list = NULL;
-    tok = NULL;
+    ret.size = 0;
 
-    g_regex_match (regex, query, 0, &match_info);
-    while (g_match_info_matches (match_info))
-    {
-        gchar *phrase_str = g_match_info_fetch (match_info, 1);
+    if (option.relay == FALSE) {
+        regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
+        base_list = NULL;
+        tmp_list = NULL;
+        tok = NULL;
 
-        phrase = phrase_new();
-        tok = tokenizer_renew(tok, phrase_str);
-        while((term = tokenizer_next(tok)) != NULL){
-            phrase_append(phrase, term);
+        g_regex_match (regex, query, 0, &match_info);
+        while (g_match_info_matches (match_info))
+        {
+            gchar *phrase_str = g_match_info_fetch (match_info, 1);
+
+            phrase = phrase_new();
+            tok = tokenizer_renew(tok, phrase_str);
+            while((term = tokenizer_next(tok)) != NULL){
+                phrase_append(phrase, term);
+            }
+
+            tmp_list = fixed_index_phrase_get(findex, phrase);
+            base_list = fixed_posting_list_doc_intersect(base_list, tmp_list);
+
+            phrase_free(phrase);
+            g_match_info_next (match_info, NULL);
         }
+        g_match_info_free(match_info);
 
-        tmp_list = fixed_index_phrase_get(findex, phrase);
-        base_list = fixed_posting_list_doc_intersect(base_list, tmp_list);
-
-        phrase_free(phrase);
-        g_free (phrase_str);
-        g_match_info_next (match_info, NULL);
-    }
-    g_match_info_free(match_info);
-
-    if (base_list){
-        pair = base_list->pairs;
-        ret.size = sz = fixed_posting_list_size(base_list);
-        for(i = 0;i < sz;i++){
-            g_string_append(output_body, document_raw_record(document_set_nth(docset, pair->doc_id)));
-            pair++;
+        if (base_list){
+            pair = base_list->pairs;
+            ret.size = sz = fixed_posting_list_size(base_list);
+            for(i = 0;i < sz;i++){
+                g_string_append(output_body, document_raw_record(document_set_nth(docset, pair->doc_id)));
+                pair++;
+            }
         }
-    } else {
-        ret.size = 0;
+        g_printerr("=== query processing time: %lf [msec] ===\n",
+                   (time = g_timer_elapsed(env->timer, NULL) / 1000));
     }
-    g_printerr("=== query processing time: %lf [msec] ===\n",
-               (time = g_timer_elapsed(env->timer, NULL) / 1000));
     g_timer_start(env->timer);
 
     g_printerr("==== %s: process_query: aggregating children's results ====\n", hostname);
@@ -339,13 +353,13 @@ process_query (const gchar *query, process_env_t *env)
         g_free(tmp->retstr);
         g_free(tmp);
     }
-    g_string_append_c(output_body, '\n');
     g_printerr("==== %s: process_query: aggregated: %lf msec ====\n",
                hostname,
                (time = g_timer_elapsed(env->timer, NULL) / 1000));
 
     // g_print("# <query_id> %d\n", ret.size);
     // printf(buf->str);
+    g_printerr("%s: RESULT %d %d\n", hostname, ret.size, output_body->len);
     g_string_sprintf(output_header,
                      "RESULT %d %d\n", ret.size, output_body->len);
     if (send_all(env->sockfd, output_header->str,
@@ -412,7 +426,6 @@ child_downstreamer (void *data)
     pthread_t upstreamer;
 
     child_hostname = g_string_new("");
-    g_async_queue_ref(arg->queue);
     g_string_sprintf(child_hostname, "%s.sc.iis.u-tokyo.ac.jp", arg->child_hostname);
     bzero(&hints, sizeof(struct addrinfo));
     bzero(&hints, sizeof(struct addrinfo));
@@ -428,6 +441,17 @@ child_downstreamer (void *data)
     if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1){
         g_printerr("%s: Cannot make socket\n", hostname);
         exit(EXIT_FAILURE);
+    }
+    if (option.tcp_nodelay == 1){
+        g_printerr("%s: TCP_NODELAY enabled\n", hostname);
+        if (setsockopt(sockfd, IPPROTO_TCP,
+                       TCP_NODELAY, (char *) &option.tcp_nodelay,
+                       sizeof(gint)) != 0){
+            g_printerr("%s: setsockopt failed: errno = %d\n",
+                       hostname, errno);
+            close(sockfd);
+            exit(EXIT_FAILURE);
+        }
     }
 
 reconnect:
@@ -476,7 +500,6 @@ reconnect:
             shutdown(sockfd, SHUT_RDWR);
             close(sockfd);
             g_string_free(tmpbuf, TRUE);
-            g_async_queue_unref(arg->queue);
             freeaddrinfo(res);
             return NULL;
         }
@@ -486,6 +509,7 @@ reconnect:
         if (send_all(sockfd, tmpbuf->str, tmpbuf->len) == -1){
             shutdown(sockfd, SHUT_RDWR);
             pthread_cancel(upstreamer);
+            g_printerr("%s: upstreamer canceled\n", hostname);
             pthread_join(upstreamer, NULL);
             goto reconnect;
         }
@@ -503,26 +527,30 @@ child_upstreamer (void *data)
     gchar *endptr;
     query_result_t *ret;
     gint bytes;
+    gint rest_bytes;
     ssize_t sz;
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
     arg = (child_arg_t *) data;
+    g_async_queue_ref(arg->queue);
+
     recvbuf = g_string_new("");
     for(;;){
-        do {
+        while((eolptr = index(recvbuf->str, '\n')) == NULL) {
             sz = read(arg->sockfd, recv_block, RECV_BLOCK_SIZE);
             if (sz == -1){
-                g_printerr("%s: read(2) error: errno = %d\n",
-                           hostname, errno);
+                g_printerr("%s(%d): read(2) error: errno = %d\n",
+                           hostname, arg->id, errno);
                 exit(EXIT_FAILURE);
             } else if (sz == 0) {
-                g_printerr("%s: child_downstreamer: cannot be happened.\n",
-                           hostname);
+                g_printerr("%s(%d): child_downstreamer: cannot be happened.\n",
+                           hostname,
+                           arg->id);
                 exit(EXIT_FAILURE);
             }
             g_string_append_len(recvbuf, recv_block, sz);
-        } while((eolptr = index(recvbuf->str, '\n')) == NULL);
+        }
+        // g_printerr("%s(%d): received 1 line\n", hostname, arg->id);
 
         guint linelen = ((eolptr + 1) - recvbuf->str);
 
@@ -531,24 +559,45 @@ child_upstreamer (void *data)
             ret->size = 0;
             ret->size = strtol(recvbuf->str + 7, &endptr, 10);
             bytes = strtol(endptr, NULL, 10);
+            g_string_erase(recvbuf, 0, linelen);
             if (bytes == 0){
                 continue;
             }
-            ret->retstr = g_malloc(sizeof(gchar) * bytes);;
-            sz = recv_all(arg->sockfd, ret->retstr, sizeof(gchar) * bytes);
-            if (sz == -1){
-                // error
-                g_printerr("%s: socket error (closed?)\n",
-                           hostname);
-                exit(EXIT_FAILURE);
+            rest_bytes = bytes - recvbuf->len;
+            // g_printerr("%s(%d): result: size=%d, bytes = %d, rest_bytes = %d, recvbuf->len = %d, orig: '%.30s'\n",
+            //            hostname, arg->id, ret->size, bytes, rest_bytes, recvbuf->len, recvbuf->str);
+            ret->retstr = g_malloc(sizeof(gchar) * (bytes + 1));;
+            if (recvbuf->len >= bytes) {
+                memcpy(ret->retstr, recvbuf->str, bytes * sizeof(gchar));
+                g_string_erase(recvbuf, 0, bytes);
+            } else {
+                if (recvbuf->len > 0) {
+                    memcpy(ret->retstr, recvbuf->str, recvbuf->len * sizeof(gchar));
+                }
+                sz = recv_all(arg->sockfd, ret->retstr + recvbuf->len, sizeof(gchar) * rest_bytes);
+                g_string_set_size(recvbuf, 0);
+                if (sz == -1){
+                    // error
+                    // g_printerr("%s(%d): socket error (closed?)\n",
+                    //            hostname, arg->id);
+                    exit(EXIT_FAILURE);
+                } else if (sz != rest_bytes){
+                    // error
+                    // g_printerr("%s(%d): data may be lost\n",
+                    //            hostname, arg->id);
+                }
             }
+            ret->retstr[bytes] = '\0';
             g_async_queue_push(arg->queue, ret);
+        } else {
+            // g_printerr("%s(%d): not RESULT: %.50s\n",
+            //            hostname, arg->id, recvbuf->str);
+            g_string_erase(recvbuf, 0, linelen);
         }
-
-        // clear the command line
-        g_string_erase(recvbuf, 0, linelen);
     }
 
+    g_printerr("%s(%d): upstreamer exit\n",hostname, arg->id);
+    g_async_queue_unref(arg->queue);
     return NULL;
 }
 
@@ -573,97 +622,99 @@ main (gint argc, gchar **argv)
     InvIndex *inv_index;
     GTimer *timer;
 
-    g_print("%s: start loading document %s\n", hostname, option.datafile);
-    timer = g_timer_new();
-    g_timer_start(timer);
-    docset = document_set_load(option.datafile);
-    g_timer_stop(timer);
-
-    g_print("%s: document loaded: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
-    g_print("%s: path: %s, # of documents: %d\n",
-               hostname, option.datafile, document_set_size(docset));
-
-    if (!option.load_index){
-        inv_index = inv_index_new();
-        guint idx;
-        guint sz = document_set_size(docset);
-
-        if (option.doc_limit > 0){
-            sz = option.doc_limit;
-        }
-
-        Tokenizer *tok;
+    if (option.relay == FALSE) {
+        g_print("%s: start loading document %s\n", hostname, option.datafile);
+        timer = g_timer_new();
         g_timer_start(timer);
-        for(idx = 0;idx < sz;idx++){
-            Document *doc = document_set_nth(docset, idx);
-            tok = tokenizer_renew2(tok,
-                                   document_body_pointer(doc),
-                                   document_body_size(doc));
-            const gchar *term;
-            guint pos = 0;
-            gint doc_id = document_id(doc);
-            if (doc_id % 5000 == 0){
-                g_print("%s: %d/%d documents indexed: %d terms.\n",
-                        hostname,
-                        doc_id,
-                        document_set_size(docset),
-                        inv_index_numterms(inv_index));
-            }
-            while((term = tokenizer_next(tok)) != NULL){
-                inv_index_add_term(inv_index, term, doc_id, pos++);
-            }
-            pos = 0;
-            tok = tokenizer_renew(tok, document_title(doc));
-            while((term = tokenizer_next(tok)) != NULL){
-                inv_index_add_term(inv_index, term, doc_id, G_MININT + (pos++));
-            }
-        }
+        docset = document_set_load(option.datafile);
         g_timer_stop(timer);
-        g_print("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",
-                hostname,
-                g_timer_elapsed(timer, NULL),
-                hostname,
-                inv_index_numterms(inv_index));
 
-        g_print("%s: packing index\n", hostname);
-        g_timer_start(timer);
-        findex = fixed_index_new(inv_index);
-        g_timer_stop(timer);
-        g_print("%s: packed: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+        g_print("%s: document loaded: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+        g_print("%s: path: %s, # of documents: %d\n",
+                hostname, option.datafile, document_set_size(docset));
 
-        if (inv_index_numterms(inv_index) != fixed_index_numterms(findex)){
-            g_print("%s: invalid packed index\n", hostname);
-            exit(EXIT_FAILURE);
-        }
+        if (!option.load_index){
+            inv_index = inv_index_new();
+            guint idx;
+            guint sz = document_set_size(docset);
 
-        if (option.save_index){
+            if (option.doc_limit > 0){
+                sz = option.doc_limit;
+            }
+
+            Tokenizer *tok;
             g_timer_start(timer);
-            if (fixed_index_dump(findex, option.save_index) == NULL){
-                g_print("%s: failed to save index to '%s'\n",
-                        hostname,
-                        option.save_index);
-                exit(EXIT_FAILURE);
-            }
-            if (chmod(option.save_index, S_IRUSR) != 0){
-                g_print("%s: failed to chmod index '%s'\n",
-                        hostname,
-                        option.save_index);
-                // exit(EXIT_FAILURE);
+            for(idx = 0;idx < sz;idx++){
+                Document *doc = document_set_nth(docset, idx);
+                tok = tokenizer_renew2(tok,
+                                       document_body_pointer(doc),
+                                       document_body_size(doc));
+                const gchar *term;
+                guint pos = 0;
+                gint doc_id = document_id(doc);
+                if (doc_id % 5000 == 0){
+                    g_print("%s: %d/%d documents indexed: %d terms.\n",
+                            hostname,
+                            doc_id,
+                            document_set_size(docset),
+                            inv_index_numterms(inv_index));
+                }
+                while((term = tokenizer_next(tok)) != NULL){
+                    inv_index_add_term(inv_index, term, doc_id, pos++);
+                }
+                pos = 0;
+                tok = tokenizer_renew(tok, document_title(doc));
+                while((term = tokenizer_next(tok)) != NULL){
+                    inv_index_add_term(inv_index, term, doc_id, G_MININT + (pos++));
+                }
             }
             g_timer_stop(timer);
-            g_print("%s: save index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
-        }
-        inv_index_free(inv_index);
-    } else {
-        g_timer_start(timer);
-        if ((findex = fixed_index_load(option.load_index)) == NULL){
-            g_print("%s: failed to load index from '%s'\n",
+            g_print("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",
                     hostname,
-                    option.load_index);
-            exit(EXIT_FAILURE);
+                    g_timer_elapsed(timer, NULL),
+                    hostname,
+                    inv_index_numterms(inv_index));
+
+            g_print("%s: packing index\n", hostname);
+            g_timer_start(timer);
+            findex = fixed_index_new(inv_index);
+            g_timer_stop(timer);
+            g_print("%s: packed: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+
+            if (inv_index_numterms(inv_index) != fixed_index_numterms(findex)){
+                g_print("%s: invalid packed index\n", hostname);
+                exit(EXIT_FAILURE);
+            }
+
+            if (option.save_index){
+                g_timer_start(timer);
+                if (fixed_index_dump(findex, option.save_index) == NULL){
+                    g_print("%s: failed to save index to '%s'\n",
+                            hostname,
+                            option.save_index);
+                    exit(EXIT_FAILURE);
+                }
+                if (chmod(option.save_index, S_IRUSR) != 0){
+                    g_print("%s: failed to chmod index '%s'\n",
+                            hostname,
+                            option.save_index);
+                    // exit(EXIT_FAILURE);
+                }
+                g_timer_stop(timer);
+                g_print("%s: save index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+            }
+            inv_index_free(inv_index);
+        } else {
+            g_timer_start(timer);
+            if ((findex = fixed_index_load(option.load_index)) == NULL){
+                g_print("%s: failed to load index from '%s'\n",
+                        hostname,
+                        option.load_index);
+                exit(EXIT_FAILURE);
+            }
+            g_timer_stop(timer);
+            g_print("%s: load index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
         }
-        g_timer_stop(timer);
-        g_print("%s: load index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
     }
 
     if (option.daemon){

@@ -56,7 +56,7 @@ static GOptionEntry entries[] =
 
 typedef struct _child_thread_arg_t {
     guint id;
-    const gchar *child_host_id;
+    const gchar *child_hostname;
     pthread_mutex_t *sock_mutex;
     GSocketConnection *sock;
     pthread_barrier_t *barrier;
@@ -127,14 +127,14 @@ run(void)
     pthread_barrier_t barrier;
     child_thread_arg_t *child_thread_args = NULL;
     guint child_num = 0;
-    gchar **child_ids = NULL;
+    gchar **child_hostnames = NULL;
     gint i;
     GAsyncQueue *queue = g_async_queue_new();
     const gchar *query;
 
     if (option.network != NULL && strcmp("none", option.network) != 0){
-        child_ids = g_strsplit(option.network, ",", 0);
-        for(i = 0;child_ids[i] != NULL;i++){
+        child_hostnames = g_strsplit(option.network, ",", 0);
+        for(i = 0;child_hostnames[i] != NULL;i++){
             child_num++;
         }
         pthread_barrier_init(&barrier, NULL, child_num + 1);
@@ -146,7 +146,7 @@ run(void)
             arg->id = i;
             pthread_mutex_init(&child_sock_mutexes[i], NULL);
             arg->sock_mutex = &child_sock_mutexes[i];
-            arg->child_host_id = child_ids[i];
+            arg->child_hostname = child_hostnames[i];
             arg->query = &query;
             arg->queue = queue;;
             arg->barrier = &barrier;
@@ -310,7 +310,8 @@ child_thread_func (void *data)
     GInputStream *is;
     GString *child_hostname = g_string_new("");
     g_async_queue_ref(arg->queue);
-    g_string_sprintf(child_hostname, "cloko%s.sc.iis.u-tokyo.ac.jp", arg->child_host_id);
+    // g_string_sprintf(child_hostname, "cloko%s.sc.iis.u-tokyo.ac.jp", arg->child_hostname);
+    g_string_sprintf(child_hostname, "%s.sc.iis.u-tokyo.ac.jp", arg->child_hostname);
     client = g_socket_client_new();
     gint retry;
     pthread_mutex_lock(arg->sock_mutex);
@@ -328,6 +329,10 @@ child_thread_func (void *data)
         if (conn) break;
         g_usleep(1000000);
     }
+
+    g_printerr("%s: connected to child %s\n",
+               hostname,
+               child_hostname->str);
 
     arg->sock = conn;
     pthread_mutex_unlock(arg->sock_mutex);
@@ -347,7 +352,7 @@ child_thread_func (void *data)
 
     for(;;){
         pthread_barrier_wait(arg->barrier);
-        g_printerr("%s: thread %d passed barrier.\n", arg->id);
+        g_printerr("%s: thread %d passed barrier.\n", hostname, arg->id);
         if (exit_flag){
             pthread_mutex_lock(arg->sock_mutex);
             g_output_stream_write_all(stream, "QUIT\n", 5, NULL, NULL, NULL);

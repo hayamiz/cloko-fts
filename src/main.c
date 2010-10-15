@@ -29,12 +29,14 @@ static struct {
     gint port;
     gboolean daemon;
     gint doc_limit;
+    gint timeout;
 } option;
 
 struct process_env {
-    GSocketConnection *sock;
+    GOutputStream *sock_ostream;
     GAsyncQueue *queue;
     guint child_num;
+    GTimer *timer;
 };
 
 typedef struct query_result {
@@ -49,6 +51,7 @@ static GOptionEntry entries[] =
     { "load-index", 'i', 0, G_OPTION_ARG_STRING, &option.load_index, "", "FILE" },
     { "daemon", 'D', 0, G_OPTION_ARG_NONE, &option.daemon, "", "FILE" },
     { "network", 'n', 0, G_OPTION_ARG_STRING, &option.network, "host numbers (ex. 000,001) or 'none'", "HOSTS" },
+    { "timeout", 't', 0, G_OPTION_ARG_INT, &option.timeout, "Client connect timeout", "SECONDS" },
     { "port", 'p', 0, G_OPTION_ARG_INT, &option.network, "port number", "PORT" },
     { "doc-limit", 'l', 0, G_OPTION_ARG_INT, &option.doc_limit, "", "NUM" },
     { NULL }
@@ -82,6 +85,7 @@ parse_args (gint *argc, gchar ***argv)
     option.port    = 30001;
     option.daemon  = FALSE;
     option.doc_limit = -1;
+    option.timeout = 100;
 
     context = g_option_context_new ("- test tree model performance");
     g_option_context_add_main_entries (context, entries, NULL);
@@ -161,6 +165,9 @@ run(void)
         pthread_barrier_init(&barrier, NULL, 1);
     }
 
+    // wait children
+    pthread_barrier_wait(&barrier);
+
     GSocketListener *listener = g_socket_listener_new();
     g_socket_listener_add_inet_port(listener, option.port, NULL, NULL);
 
@@ -173,8 +180,14 @@ run(void)
     GInputStream *stream;
     gssize sz;
     const gchar *ptr;
+    GTimer *timer;
+    GOutputStream *os;
+
+    timer = g_timer_new();
+
 accept_again:
     sock = g_socket_listener_accept(listener, NULL, NULL, NULL);
+    os = g_io_stream_get_output_stream(G_IO_STREAM(sock));
     remote_addr = G_INET_SOCKET_ADDRESS(g_socket_connection_get_remote_address(sock, NULL));
         buf = g_string_new("");
     g_printerr("Accepted connection from %s\n",
@@ -182,6 +195,7 @@ accept_again:
 
     stream = g_io_stream_get_input_stream(G_IO_STREAM(sock));
     while((sz = g_input_stream_read(stream, readbuf, 4096, NULL, NULL)) != 0){
+        g_timer_start(timer);
         g_string_append_len(buf, readbuf, sz);
         if ((ptr = index(buf->str, '\n')) == NULL){
             continue;
@@ -207,9 +221,10 @@ accept_again:
             pthread_barrier_wait(&barrier);
 
             process_env_t env;
-            env.sock = sock;
+            env.sock_ostream = os;
             env.queue = queue;
             env.child_num = child_num;
+            env.timer = timer;
             process_query(query, &env);
         } else {
             if ((ptr = index(buf->str, '\n')) != NULL){
@@ -234,17 +249,25 @@ quit:
 void
 process_query (const gchar *query, process_env_t *env)
 {
-    g_printerr("==== %s: process_query ====\n", hostname);
-
     query_result_t ret;
     query_result_t *tmp;
     FixedPostingList *base_list = NULL;
     FixedPostingList *tmp_list;
-    GRegex *regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
     GMatchInfo *match_info = NULL;
+    GString *output_header;
+    GString *output_body;
+    gchar **phrases;
+    guint i;
+    guint sz;
+    PostingPair *pair;
+    gdouble time;
 
-    gchar **phrases = g_strsplit(query + 1, "\" \"", 0);
-    guint i = 0;
+    g_printerr("==== %s: process_query ====\n", hostname);
+    g_timer_start(env->timer);
+    output_header = g_string_new("");
+    output_body = g_string_new("");
+    phrases = g_strsplit(query + 1, "\" \"", 0);
+    i = 0;
 
     gchar *phrase_str;
     gchar **phrases_ptr = phrases;
@@ -263,41 +286,46 @@ process_query (const gchar *query, process_env_t *env)
         phrases_ptr++;
     }
 
-    GString *buf = g_string_new("");
-    guint sz;
-    PostingPair *pair;
     if (base_list){
         pair = base_list->pairs;
         ret.size = sz = fixed_posting_list_size(base_list);
         for(i = 0;i < sz;i++){
-            g_string_append(buf, document_raw_record(document_set_nth(docset, pair->doc_id)));
+            g_string_append(output_body, document_raw_record(document_set_nth(docset, pair->doc_id)));
             pair++;
         }
     } else {
         ret.size = 0;
     }
+    g_printerr("=== query processing time: %lf [msec] ===\n",
+               (time = g_timer_elapsed(env->timer, NULL) / 1000));
+    g_string_printf(output_header, "PERF %s QUERY %lf msec\n", hostname, time / 1000);
+    g_timer_start(env->timer);
 
     g_printerr("==== %s: process_query: aggregating children's results ====\n", hostname);
     for(i = 0;i < env->child_num;i++){
         tmp = (query_result_t *)g_async_queue_pop(env->queue);
         ret.size += tmp->size;
-        g_string_append(buf, tmp->retstr);
+        g_string_append(output_body, tmp->retstr);
         g_free(tmp->retstr);
         g_free(tmp);
     }
-    g_printerr("==== %s: process_query: aggregated ====\n", hostname);
+    g_string_append_c(output_body, '\n');
+    g_printerr("==== %s: process_query: aggregated: %lf msec ====\n",
+               hostname,
+               (time = g_timer_elapsed(env->timer, NULL) / 1000));
+    g_string_printf(output_header, "PERF %s AGGREGATE %lf msec\n", hostname, time / 1000);
 
     // g_print("# <query_id> %d\n", ret.size);
     // printf(buf->str);
-    GString *header = g_string_new("");
-    g_string_sprintf(header,
-                     "RSLT %d %d\n", ret.size, buf->len);
-    GOutputStream *os = g_io_stream_get_output_stream(G_IO_STREAM(env->sock));
-    g_output_stream_write_all(os, header->str, header->len, NULL, NULL, NULL);
-    g_output_stream_write_all(os, buf->str, buf->len, NULL, NULL, NULL);
-    g_output_stream_write_all(os, "\n", 1, NULL, NULL, NULL);
-    g_string_free(header, TRUE);
-    g_string_free(buf, TRUE);
+    g_string_sprintf(output_header,
+                     "RSLT %d %d\n", ret.size, output_body->len);
+    g_output_stream_write_all(env->sock_ostream, output_header->str,
+                              output_header->len, NULL, NULL, NULL);
+    g_output_stream_write_all(env->sock_ostream, output_body->str,
+                              output_body->len, NULL, NULL, NULL);
+    g_string_free(output_header, TRUE);
+    g_string_free(output_body, TRUE);
+    g_printerr("==== %s: process_query: finished ====\n", hostname);
 }
 
 void *
@@ -316,7 +344,7 @@ child_thread_func (void *data)
     gint retry;
     pthread_mutex_lock(arg->sock_mutex);
     for(retry = 0;;retry++){
-        if (retry > 100){
+        if (retry > option.timeout){
             g_printerr("%s: cannot connect to child %s\n",
                        hostname,
                        child_hostname->str);
@@ -333,9 +361,10 @@ child_thread_func (void *data)
     g_printerr("%s: connected to child %s\n",
                hostname,
                child_hostname->str);
-
     arg->sock = conn;
     pthread_mutex_unlock(arg->sock_mutex);
+
+    pthread_barrier_wait(arg->barrier);
 
     GString *buf = g_string_new("");
     GString *tmpbuf = g_string_new("");
@@ -345,7 +374,7 @@ child_thread_func (void *data)
     const gchar *ptr;
     gchar *endptr;
     guint bytes;
-    
+
     stream = g_io_stream_get_output_stream(G_IO_STREAM(conn));
     is = g_io_stream_get_input_stream(G_IO_STREAM(conn));
     buf = g_string_new("");
@@ -386,7 +415,7 @@ child_thread_func (void *data)
             g_string_erase(buf, 0, ((ptr + 1) - buf->str) * sizeof(gchar));
 
             while(buf->len < bytes + 1){
-                sz = g_input_stream_read(is, readbuf, 4096, NULL, NULL);
+                sz = g_input_stream_read_all(is, readbuf, 4096, NULL, NULL, NULL);
                 if (sz == 0){
                     // connection closed.
                     exit(EXIT_FAILURE);

@@ -89,15 +89,15 @@ test_fixed_index_phrase_get (void)
     FixedPostingList *fplist;
 
     inv_index = inv_index_new();
-    inv_index_add_term(inv_index, "this" , 0, 0);
-    inv_index_add_term(inv_index, "is"   , 0, 1);
-    inv_index_add_term(inv_index, "an"   , 0, 2);
-    inv_index_add_term(inv_index, "apple", 0, 3);
+    inv_index_add_term(inv_index, g_strdup("this" ), 0, 0);
+    inv_index_add_term(inv_index, g_strdup("is"   ), 0, 1);
+    inv_index_add_term(inv_index, g_strdup("an"   ), 0, 2);
+    inv_index_add_term(inv_index, g_strdup("apple"), 0, 3);
 
-    inv_index_add_term(inv_index, "this", 1, 0);
-    inv_index_add_term(inv_index, "is"  , 1, 1);
-    inv_index_add_term(inv_index, "a"   , 1, 2);
-    inv_index_add_term(inv_index, "pen" , 1, 3);
+    inv_index_add_term(inv_index, g_strdup("this"), 1, 0);
+    inv_index_add_term(inv_index, g_strdup("is"  ), 1, 1);
+    inv_index_add_term(inv_index, g_strdup("a"   ), 1, 2);
+    inv_index_add_term(inv_index, g_strdup("pen" ), 1, 3);
 
     fixed_index = fixed_index_new(inv_index);
     inv_index_free(inv_index);

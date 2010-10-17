@@ -50,7 +50,7 @@ posting_list_free (PostingList *posting_list, gboolean free_pairs)
         g_tree_foreach(posting_list->list, posting_list_free_gtree_func, NULL);
     }
     g_tree_unref(posting_list->list);
-    g_free(posting_list);
+    g_slice_free1(sizeof(PostingPair), posting_list);
 }
 
 static gboolean
@@ -82,7 +82,7 @@ posting_list_size (PostingList *posting_list)
 void
 posting_list_add (PostingList *posting_list, guint32 doc_id, gint32 pos)
 {
-    PostingPair *pair = posting_pair_new(doc_id, pos);
+    PostingPair *pair = g_slice_alloc(sizeof(PostingPair)); // posting_pair_new(doc_id, pos);
     pair->doc_id = doc_id;
     pair->pos    = pos;
 

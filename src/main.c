@@ -22,6 +22,7 @@ static void *child_downstreamer (void *data);
 static void *child_upstreamer (void *data);
 static gchar *get_hostname (void);
 static void process_query(const gchar *query, process_env_t *env);
+void   phrase_search_thread_func (gpointer data, gpointer user_data);
 static inline ssize_t send_all(gint sockfd, const gchar *msg, ssize_t size);
 static inline ssize_t recv_all(gint sockfd, gchar *res, ssize_t size);
 
@@ -60,7 +61,14 @@ struct process_env {
     GAsyncQueue *queue;
     guint child_num;
     GTimer *timer;
+    GThreadPool *thread_pool;
 };
+
+typedef struct phrase_search {
+    const gchar *phrase_str;
+    GAsyncQueue *queue;
+    FixedPostingList *ret;
+} phrase_search_arg_t;
 
 typedef struct query_result {
     guint size;
@@ -161,6 +169,13 @@ run(void)
     gint i;
     GAsyncQueue *queue = g_async_queue_new();
     const gchar *query;
+    GThreadPool *thread_pool;
+
+    thread_pool = g_thread_pool_new(phrase_search_thread_func,
+                                    NULL,
+                                    16,
+                                    TRUE,
+                                    NULL);
 
     if (option.network != NULL && strcmp("none", option.network) != 0){
         child_hostnames = g_strsplit(option.network, ",", 0);
@@ -269,6 +284,7 @@ accept_again:
             env.queue = queue;
             env.child_num = child_num;
             env.timer = timer;
+            env.thread_pool = thread_pool;
             process_query(query, &env);
         }
         g_string_erase(recvbuf, 0, ((eolptr + 1) - recvbuf->str) * sizeof(gchar));
@@ -310,15 +326,18 @@ process_query (const gchar *query, process_env_t *env)
     guint sz;
     PostingPair *pair;
     gdouble time;
-    Phrase *phrase;
     Tokenizer *tok;
-    const gchar *term;
+    GAsyncQueue *search_queue;
+    guint num_phrases;
+    phrase_search_arg_t *arg;
 
     g_timer_start(env->timer);
 
     output_header = g_string_new("");
     output_body = g_string_new("");
     ret.size = 0;
+    search_queue = g_async_queue_new();
+    num_phrases = 0;
 
     if (option.relay == FALSE) {
         regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
@@ -330,20 +349,22 @@ process_query (const gchar *query, process_env_t *env)
         while (g_match_info_matches (match_info))
         {
             gchar *phrase_str = g_match_info_fetch (match_info, 1);
+            num_phrases++;
 
-            phrase = phrase_new();
-            tok = tokenizer_renew(tok, phrase_str);
-            while((term = tokenizer_next(tok)) != NULL){
-                phrase_append(phrase, term);
-            }
+            arg = g_malloc(sizeof(phrase_search_arg_t));
+            arg->phrase_str = phrase_str;
+            arg->queue = search_queue;
+            g_thread_pool_push(env->thread_pool, arg, NULL);
 
-            tmp_list = fixed_index_phrase_get(findex, phrase);
-            base_list = fixed_posting_list_doc_intersect(base_list, tmp_list);
-
-            phrase_free(phrase);
             g_match_info_next (match_info, NULL);
         }
-        g_match_info_free(match_info);
+
+        for(;num_phrases > 0;num_phrases--){
+            arg = g_async_queue_pop(search_queue);
+            base_list = fixed_posting_list_doc_intersect(base_list,
+                                                         arg->ret);
+            g_free(arg);
+        }
 
         if (base_list){
             pair = base_list->pairs;
@@ -353,6 +374,7 @@ process_query (const gchar *query, process_env_t *env)
                 pair++;
             }
         }
+        g_match_info_free(match_info);
         MSG("query processing time: %lf [msec]\n",
             (time = g_timer_elapsed(env->timer, NULL) * 1000));
     }
@@ -389,6 +411,29 @@ process_query (const gchar *query, process_env_t *env)
     g_string_free(output_header, TRUE);
     g_string_free(output_body, TRUE);
     MSG("==== process_query: finished ====\n");
+}
+
+void
+phrase_search_thread_func (gpointer data, gpointer user_data)
+{
+    phrase_search_arg_t *arg = (phrase_search_arg_t *) data;
+    Tokenizer *tok;
+    FixedPostingList *list;
+    Phrase *phrase;
+    const gchar *term;
+
+    phrase = phrase_new();
+    tok = tokenizer_new(arg->phrase_str);
+    while((term = tokenizer_next(tok)) != NULL){
+        phrase_append(phrase, term);
+    }
+    list = fixed_index_phrase_get(findex, phrase);
+
+    // result
+    arg->ret = list;
+    g_async_queue_push(arg->queue, arg);
+    phrase_free(phrase);
+    tokenizer_free(tok);
 }
 
 static inline ssize_t

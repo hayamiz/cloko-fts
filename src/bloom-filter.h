@@ -7,7 +7,8 @@
 typedef guint (*BFHashFunc) (gconstpointer key);
 
 typedef struct _BloomFilter {
-    guint vecsize; // in bit
+    guint bitsize; // in bit
+    guint vecsize;
     guint keynum;
     guint capacity;
     guint numelems;
@@ -24,6 +25,7 @@ void         bloom_filter_free        (BloomFilter *filter);
 guint        bloom_filter_capacity    (BloomFilter *filter);
 gdouble      bloom_filter_error_rate  (BloomFilter *filter);
 guint        bloom_filter_numelems    (BloomFilter *filter);
+guint        bloom_filter_bitsize     (BloomFilter *filter);
 guint        bloom_filter_vecsize     (BloomFilter *filter);
 void         bloom_filter_insert      (BloomFilter *filter, gint val);
 gboolean     bloom_filter_check       (BloomFilter *filter, gint val);

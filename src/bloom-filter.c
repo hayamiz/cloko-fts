@@ -43,6 +43,7 @@ bloom_filter_new (BFHashFunc init_hash_func,
     BloomFilter *filter;
     guint k, best_k;
     gdouble n, m, lowest_m;
+    gdouble tmp;
 
     if (error_rate < 0 || error_rate > 1.0){
         return NULL;
@@ -54,25 +55,32 @@ bloom_filter_new (BFHashFunc init_hash_func,
     filter->init_hash_func = init_hash_func;
     filter->numelems = 0;
 
-    best_k = k;
+    best_k = 4;
     lowest_m = G_MAXUINT;
     n = capacity;
     for (k = 1; k < BF_KEY_MAX; k++) {
-        m = ceil(- k * n / log(1 - pow(error_rate, 1 / k)));
+        tmp = 1 / (double)k;
+        tmp = pow(error_rate, tmp);
+        tmp = log(1.0 - tmp);
+        tmp = 1.0/ tmp;
+        tmp = -(double)k * (double)n / tmp;
+        m = ceil(tmp);
+        // m = ceil(- (double)k * (double)n / log(1.0 - pow(error_rate, 1 / (double)k)));
         if (m < lowest_m) {
             lowest_m = m;
             best_k = k;
         }
     }
 
-    filter->vecsize = (guint) lowest_m;
+    filter->bitsize = (guint) lowest_m;
     filter->keynum = best_k;
-    if (filter->vecsize == 0) {
+    if (filter->bitsize == 0) {
         g_free(filter);
-        return filter;
+        return NULL;
     }
 
-    filter->vec = g_malloc(sizeof(guint64) * ((filter->vecsize - 1) / 8 + 1));
+    filter->vecsize = (filter->bitsize >> SHIFT) + 1;
+    filter->vec = g_malloc(sizeof(guint64) * filter->vecsize);
     return filter;
 }
 
@@ -99,6 +107,13 @@ bloom_filter_numelems (BloomFilter *filter)
 }
 
 guint
+bloom_filter_bitsize (BloomFilter *filter)
+{
+    if (!filter) return 0;
+    return filter->bitsize;
+}
+
+guint
 bloom_filter_vecsize (BloomFilter *filter)
 {
     if (!filter) return 0;
@@ -122,7 +137,7 @@ bloom_filter_insert (BloomFilter *filter, gint val)
 
     for (k = 0;k < filter->keynum;k++){
         hash = bloom_filter_key_hash(k, val);
-        filter->vec[hash >> SHIFT] |= 1 << (hash & MASK);
+        filter->vec[(hash >> SHIFT) % filter->vecsize] |= 1 << (hash & MASK);
     }
     filter->numelems++;
 }
@@ -132,12 +147,14 @@ bloom_filter_check (BloomFilter *filter, gint val)
 {
     guint k;
     guint hash;
+    guint idx;
 
     if (!filter) return FALSE;
 
     for (k = 0;k < filter->keynum;k++){
         hash = bloom_filter_key_hash(k, val);
-        if (filter->vec[hash >> SHIFT] & (1 << (hash & MASK)) == 0){
+        idx = (hash % filter->bitsize) >> SHIFT;
+        if (filter->vec[idx] & (1 << (hash & MASK)) == 0){
             return FALSE;
         }
     }

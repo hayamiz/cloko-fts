@@ -3,5 +3,6 @@
 
 #include <cutter.h>
 #include <inv-index.h>
+#include <bloom-filter.h>
 
 #endif

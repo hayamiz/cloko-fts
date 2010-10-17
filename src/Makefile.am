@@ -1,5 +1,5 @@
-# lib_LTLIBRARIES = libinv_index.la
-noinst_LTLIBRARIES = libinv_index.la
+lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
+# noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
@@ -13,8 +13,12 @@ libinv_index_la_SOURCES =			\
 	tokenizer.c				\
 	fixed-posting-list.c			\
 	fixed-index.c				\
-	phrase.c				\
-	doc-id-list.c
+	phrase.c
+
+libbloom_filter_la_SOURCES =			\
+	bloom-filter.c
+
+libbloom_filter_la_LIBADD = -lm
 
 bin_PROGRAMS = fts-node
 
@@ -23,4 +27,5 @@ fts_node_SOURCES =				\
 
 fts_node_LDADD =				\
 	libinv_index.la				\
+	libbloom_filter.la			\
 	$(GLIB_LIBS)

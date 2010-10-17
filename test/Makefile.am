@@ -5,6 +5,7 @@ noinst_LTLIBRARIES =				\
 	test_doc_tokenizer.la			\
 	test_fixed_posting_list.la		\
 	test_fixed_index.la			\
+	test_posting_list.la			\
 	test_bloom_filter.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
@@ -12,6 +13,7 @@ AM_CFLAGS = $(GLIB_CFLAGS)
 LDFLAGS = -module -rpath $(libdir) -avoid-version -no-undefined
 
 test_inv_index_la_SOURCES = test-inv-index.c
+test_posting_list_la_SOURCES = test-posting-list.c 
 test_document_set_la_SOURCES = test-document-set.c
 test_doc_tokenizer_la_SOURCES = test-doc-tokenizer.c
 test_fixed_posting_list_la_SOURCES = test-fixed-posting-list.c

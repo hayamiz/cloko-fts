@@ -731,6 +731,7 @@ main (gint argc, gchar **argv)
                 g_print("%s: invalid packed index\n", hostname);
                 exit(EXIT_FAILURE);
             }
+            fixed_index_check_validity(findex);
 
             if (option.save_index){
                 g_timer_start(timer);

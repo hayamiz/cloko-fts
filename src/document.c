@@ -42,7 +42,7 @@ document_parse (DocumentSet *docset, const gchar *text, guint offset, gint doc_i
     doc->time = strtol(ptr, NULL, 10);
     ptr = next_ptr + 1;
 
-    doc->body_pointer = ptr;
+    doc->body_pointer_offset = ptr - text;
     if ((next_ptr = strstr(ptr, "\nEOD\n")) == NULL){
         goto failure;
     }
@@ -73,7 +73,7 @@ document_position     (Document *doc)
 const gchar *
 document_body_pointer (Document *doc)
 {
-    return (doc ? doc->body_pointer : NULL);
+    return (doc ? doc->docset->buffer + doc->body_pointer_offset : NULL);
 }
 
 guint

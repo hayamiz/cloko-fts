@@ -102,30 +102,33 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
     if (!base_list) return NULL;
     if (!succ_list) return NULL;
 
-    PostingPair *p1, *p2;
-    PostingPair *p1_sentinel, *p2_sentinel;
+    guint64 *p1, *p2;
+    guint64 *p1_sentinel, *p2_sentinel;
     FixedPostingList *fplist;
     guint size = 0;
     PostingPair *pairs = NULL;
+    gint soffset = offset;
 
-    p1 = base_list->pairs;
-    p2 = succ_list->pairs;
-    p1_sentinel = base_list->pairs + base_list->size;
-    p2_sentinel = succ_list->pairs + succ_list->size;
+    FixedPostingList *inner, *outer;
+
+    inner = base_list;
+    outer = succ_list;
+    soffset = offset;
+
+    p1 = (guint64 *) inner->pairs;
+    p2 = (guint64 *) outer->pairs;
+    p1_sentinel = (guint64 *) inner->pairs + base_list->size;
+    p2_sentinel = (guint64 *) outer->pairs + succ_list->size;
 
     while(p1 != p1_sentinel && p2 != p2_sentinel){
-        p1->pos += offset;
-        if (posting_pair_compare_func(p1, p2) == 0){
-            p1->pos -= offset; // restore
+        if (*p1 + soffset == *p2){
             size++;
             pairs = g_realloc(pairs, size * sizeof(PostingPair));
-            pairs[size - 1] = *p1;
+            pairs[size - 1] = *(PostingPair *)p1;
             p1++; p2++;
-        } else if (posting_pair_compare_func(p1, p2) < 0) {
-            p1->pos -= offset; // restore
+        } else if (*p1 + soffset < *p2) {
             p1++;
         } else {
-            p1->pos -= offset; // restore
             p2++;
         }
     }

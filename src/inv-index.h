@@ -36,9 +36,10 @@ typedef struct _Phrase {
     gchar **terms;
 } Phrase;
 
+// PAY ATTENTION FOR ENDIAN
 typedef struct _PostingPair {
-    guint32 doc_id;
     gint32 pos;
+    guint32 doc_id;
 } PostingPair;
 
 typedef struct _PostingList {
@@ -111,6 +112,7 @@ PostingList *inv_index_phrase_get (InvIndex *inv_index, Phrase *phrase);
 
 FixedPostingList *fixed_posting_list_new   (PostingList *list);
 void              fixed_posting_list_free  (FixedPostingList *posting_list);
+gboolean          fixed_posting_list_check_validity (FixedPostingList *list);
 FixedPostingList *fixed_posting_list_copy  (FixedPostingList *fixed_posting_list);
 guint             fixed_posting_list_size  (FixedPostingList *fixed_posting_list);
 PostingPair      *fixed_posting_list_check (FixedPostingList *fixed_posting_list, guint32 doc_id, gint32 pos);
@@ -123,6 +125,7 @@ FixedPostingList *fixed_posting_list_doc_intersect (FixedPostingList *fplist1,
 
 FixedIndex       *fixed_index_new        (InvIndex *inv_index);
 void              fixed_index_free       (FixedIndex *fixed_index);
+gboolean          fixed_index_check_validity (FixedIndex *findex);
 int               fixed_index_numterms   (FixedIndex *fixed_index);
 FixedPostingList *fixed_index_get        (FixedIndex *fixed_index, const gchar *term);
 FixedPostingList *fixed_index_phrase_get (FixedIndex *fixed_index, Phrase *phrase);

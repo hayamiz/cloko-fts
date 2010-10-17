@@ -14,11 +14,12 @@ posting_pair_compare_func (gconstpointer a, gconstpointer b)
 PostingPair *
 posting_pair_new (guint32 doc_id, gint32 pos)
 {
-    PostingPair *pp = g_malloc(sizeof(PostingPair));
-    pp->doc_id = doc_id;
-    pp->pos = pos;
+    PostingPair *pair;
+    pair = g_malloc(sizeof(PostingPair));
+    pair->doc_id = doc_id;
+    pair->pos = pos;
 
-    return pp;
+    return pair;
 }
 
 PostingPair *

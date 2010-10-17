@@ -1,7 +1,8 @@
 #!/usr/bin/env ruby
+# encoding: utf-8
 
 require 'optparse'
-require File.join(File.dirname($0), 'rubyfts')
+require File.join(File.dirname(__FILE__), 'rubyfts')
 
 def parse_args(argv)
   opt = Hash.new
@@ -9,9 +10,14 @@ def parse_args(argv)
 
   parser.banner = "Usage: #{$0} [options] [head node]\nDefault head node is localhost.\n"
 
-  opt[:some_option] = 'default value'
-  parser.on('-o', '--option VALUE') do |value|
-    opt[:some_option] = value
+  opt[:input_file] = $stdin
+  parser.on('-i', '--input FILE') do |value|
+    opt[:input_file] = File.open(value)
+  end
+
+  opt[:output_file] = $stdout
+  parser.on('-o', '--output FILE') do |value|
+    opt[:output_file] = File.open(value, "w")
   end
 
   parser.parse!(argv)
@@ -30,10 +36,10 @@ def main(argv)
 
   c = FullTextSearch::Competition.new(opt[:head_node],
                                       30001,
-                                      $stdout)
-  c.run($stdin, true)
+                                      opt[:output_file])
+  c.run(opt[:input_file], true)
 end
 
-if __FILE__ == $0
+if __FILE__ == $0 || File.basename($0) == "ruby-prof"
   main(ARGV.dup)
 end

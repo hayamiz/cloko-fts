@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# encoding: utf-8
+
+Encoding.default_external = "UTF-8"
 
 require 'optparse'
 require 'socket'
@@ -19,8 +22,8 @@ class BasicSocket
     ret = ""
     total = 0
     while total < len
-      blk = self.readpartial(len - total)
-      if blk.size == 0
+      blk = self.read(len - total)
+      if blk.nil? || blk.size == 0
         break
       end
       ret += blk
@@ -62,14 +65,17 @@ module FullTextSearch
 
       results = Array.new
 
-      queries.each do |query| # query is just an array of phrases
-        cmd_query(query[:phrases])
-      end
+      query_thread = Thread.new {
+        queries.each do |query| # query is just an array of phrases
+          cmd_query(query[:phrases])
+        end
+      }
 
       queries.each do |_|
         results.push(cmd_result())
       end
 
+      query_thread.join
       disconnect()
 
       results
@@ -91,7 +97,6 @@ module FullTextSearch
     def cmd_query(query)
       query = query.map{|phrase| normalize_phrase(phrase)}.compact
       cmdstr = "QUERY " + query.join(" ") + "\n"
-      p cmdstr
 
       @sock.send_all(cmdstr)
     end

@@ -13,6 +13,7 @@ fixed_posting_list_new_gtree_func(gpointer key, gpointer value, gpointer data)
     PostingPair *pair = rec->fplist->pairs + rec->idx;
     *pair = *((PostingPair *)key);
     bloom_filter_insert(rec->fplist->filter, ((PostingPair *)key)->doc_id);
+    rec->idx++;
 
     return FALSE;
 }

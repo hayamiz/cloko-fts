@@ -123,7 +123,27 @@ receiver_thread (void *ptr)
         g_string_append_len(output, (const gchar *) buf, sz);
     }
 
-    printf(output->str);
+    gint rnum;
+    guint qid;
+    guint bytes;
+    gchar *endptr;
+    gchar *tmp;
+    gchar *bod;
+    // printf(output->str);
+    endptr = output->str;
+    qid = 1;
+    while((tmp = strstr(endptr, "RESULT")) != NULL){
+        rnum = strtol(tmp + 7, &endptr, 10);
+        bytes = strtol(endptr, &endptr, 10);
+        if (endptr[0] != '\n'){
+            g_printerr("error\n");
+            exit(EXIT_FAILURE);
+        }
+        printf("## %d %d\n", qid, rnum);
+        fwrite(endptr + 1, sizeof(gchar), bytes, stdout);
+        qid ++;
+        endptr = endptr + 1 + bytes;
+    }
 }
 
 void

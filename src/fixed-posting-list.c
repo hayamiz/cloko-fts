@@ -12,7 +12,7 @@ fixed_posting_list_new_gtree_func(gpointer key, gpointer value, gpointer data)
         (struct fixed_posting_list_new_rec *) data;
     PostingPair *pair = rec->fplist->pairs + rec->idx;
     *pair = *((PostingPair *)key);
-    bloom_filter_insert(rec->fplist->filter, ((PostingPair *)key)->doc_id);
+    // bloom_filter_insert(rec->fplist->filter, ((PostingPair *)key)->doc_id);
     rec->idx++;
 
     return FALSE;
@@ -25,7 +25,7 @@ fixed_posting_list_new (PostingList *list)
     fplist = g_malloc(sizeof(FixedPostingList));
     fplist->size = posting_list_size(list);
     fplist->pairs = g_malloc(sizeof(PostingPair) * fplist->size);
-    fplist->filter = bloom_filter_new(NULL, 0.01, fplist->size);
+    fplist->filter = NULL; // bloom_filter_new(NULL, 0.01, fplist->size);
 
     struct fixed_posting_list_new_rec rec;
     rec.idx = 0;

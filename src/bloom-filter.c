@@ -3,7 +3,7 @@
 
 #define BF_KEY_MAX 100
 
-static enum { BITSPERWORD = 64, SHIFT = 6, MASK = 0x3F };
+enum { BITSPERWORD = 64, SHIFT = 6, MASK = 0x3F };
 
 static int primes[] = {2, 79, 191, 311, 439, 577, 709, 857,
                        3, 83, 193, 313, 443, 587, 719, 859,

@@ -5,7 +5,9 @@ static void
 fixed_index_new_ghash_func(gpointer key, gpointer val, gpointer user_data)
 {
     GHashTable *table = (GHashTable *) user_data;
-    g_hash_table_insert(table, key, fixed_posting_list_new((PostingList *) val));
+    g_hash_table_insert(table,
+                        g_strdup((const gchar *) key),
+                        fixed_posting_list_new((PostingList *) val));
 }
 
 FixedIndex *

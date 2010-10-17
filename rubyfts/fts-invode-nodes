@@ -1,0 +1,136 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'open3'
+
+def parse_args(argv)
+  opt = Hash.new
+  parser = OptionParser.new
+
+  parser.banner = "Usage: #{$0} [options] NODE [NODE ...]\n"
+
+  opt[:node_list] = nil
+  parser.on('-n', '--node-list FILE') do |value|
+    unless File.exists?(value)
+      $stderr.puts("No such file or directory: #{value}")
+      exit false
+    end
+
+    opt[:node_list] = File.read(value).strip.split("\n").map(&:strip)
+  end
+
+  opt[:parallel] = 6
+  parser.on('-P', '--parallel NUM') do |val|
+    opt[:parallel] = val.to_i
+  end
+
+  opt[:verbose] = false
+  parser.on('-v', '--verbose') do
+    opt[:verbose] = true
+  end
+
+  parser.parse!(argv)
+
+  if argv.size > 0 && opt[:node_list].nil?
+    opt[:node_list] = argv.dup
+  end
+
+  if opt[:node_list].nil? || opt[:node_list].size == 0
+    $stderr.puts("At least 1 node must be specified.\n\n")
+    $stdout.puts(parser.help)
+    exit(false)
+  end
+
+  opt
+end
+
+class ConnTreeNode
+  attr_reader :hostname
+  attr_reader :children
+
+  def initialize(hostname)
+    @hostname = hostname
+    @children = []
+  end
+
+  def add_child(child)
+    raise InvalidArgument.new unless child.is_a? ConnTreeNode
+    @children << child
+    child
+  end
+
+  def traverse(&block)
+    @children.each do |child|
+      child.traverse(&block)
+    end
+    block.call(self)
+  end
+end
+
+def main(argv)
+  opt = parse_args(argv)
+
+  nodes = opt[:node_list].dup
+
+  conn_tree = ConnTreeNode.new(nodes.shift)
+  leaves = [conn_tree]
+
+  while nodes.size > 0
+    per_leaf = if leaves.size * opt[:parallel] > nodes.size
+                 x = nodes.size / leaves.size + 1
+               else
+                 opt[:parallel]
+               end
+    new_leaves = []
+    leaves.each do |leaf|
+      per_leaf.times do
+        if nodes.size > 0
+          new_child = ConnTreeNode.new(nodes.shift)
+          leaf.add_child(new_child)
+          new_leaves << new_child
+        end
+      end
+    end
+    leaves = new_leaves
+  end
+
+  print_conn_tree(conn_tree)
+
+  threads = []
+
+  conn_tree.traverse{|node|
+    command = ["ssh", node.hostname,
+               "~/repos/tkl-fulltext-search/src/fts-node",
+               "--daemon",
+               "--datafile", "/data/local2/haya/fts/#{node.hostname}.txt",
+               "--load-index", "/data/local2/haya/fts/#{node.hostname}.idx"]
+    if node.children.size > 0
+      command += ["--network", node.children.map(&:hostname).join(",")]
+    end
+    if opt[:verbose]
+      command += ["--verbose"]
+    end
+    command = command.join(" ")
+    puts command
+    threads << Thread.new{
+      Open3.popen3(command){|stdin, stdout, stderr|
+        stdin.close
+        while line = stderr.gets
+          $stderr.puts(line)
+        end
+      }
+    }
+  }
+  threads.map(&:join)
+end
+
+def print_conn_tree(head, indent = 0)
+  $stdout.puts("#{' '*indent}#{head.hostname}")
+  head.children.each do |child|
+    print_conn_tree(child, indent + 2)
+  end
+end
+
+if __FILE__ == $0
+  main(ARGV.dup)
+end

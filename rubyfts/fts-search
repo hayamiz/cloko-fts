@@ -1,0 +1,39 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require File.join(File.dirname($0), 'rubyfts')
+
+def parse_args(argv)
+  opt = Hash.new
+  parser = OptionParser.new
+
+  parser.banner = "Usage: #{$0} [options] [head node]\nDefault head node is localhost.\n"
+
+  opt[:some_option] = 'default value'
+  parser.on('-o', '--option VALUE') do |value|
+    opt[:some_option] = value
+  end
+
+  parser.parse!(argv)
+
+  opt[:head_node] = if argv.size == 0
+                      "localhost"
+                    else
+                      argv.shift
+                    end
+
+  opt
+end
+
+def main(argv)
+  opt = parse_args(argv)
+
+  c = FullTextSearch::Competition.new(opt[:head_node],
+                                      30001,
+                                      $stdout)
+  c.run($stdin, true)
+end
+
+if __FILE__ == $0
+  main(ARGV.dup)
+end

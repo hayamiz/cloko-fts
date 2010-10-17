@@ -35,6 +35,33 @@ fixed_index_free       (FixedIndex *findex)
     g_free(findex);
 }
 
+static void
+fixed_index_check_validity_ghash_func(gpointer key,
+                                      gpointer value,
+                                      gpointer user_data)
+{
+    gboolean *ret;
+    const gchar *term;
+    term = (const gchar *) key;
+    ret = (gboolean *) user_data;
+    if (fixed_posting_list_check_validity((FixedPostingList *) value) == FALSE){
+        *ret = FALSE;
+        fprintf(stderr, "broken index for the term \"%s\"\n", term);
+    }
+}
+gboolean
+fixed_index_check_validity (FixedIndex *findex)
+{
+    gboolean ret;
+    ret = TRUE;
+
+    g_hash_table_foreach(findex->hash,
+                         fixed_index_check_validity_ghash_func,
+                         &ret);
+
+    return ret;
+}
+
 int
 fixed_index_numterms   (FixedIndex *findex)
 {

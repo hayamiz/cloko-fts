@@ -34,6 +34,21 @@ fixed_posting_list_new (PostingList *list)
     return fplist;
 }
 
+gboolean
+fixed_posting_list_check_validity(FixedPostingList *list)
+{
+    // check order
+    guint idx;
+    PostingPair *pair = list->pairs;
+    for(idx = 0; idx < list->size - 1;idx++){
+        if (posting_pair_compare_func(pair + idx, pair + idx + 1) >= 0){
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
 void
 fixed_posting_list_free (FixedPostingList *fplist)
 {

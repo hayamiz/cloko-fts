@@ -377,6 +377,7 @@ process_query (const gchar *query, process_env_t *env)
                 g_string_append(output_body, document_raw_record(document_set_nth(docset, pair->doc_id)));
                 pair++;
             }
+            fixed_posting_list_free(base_list);
         }
         g_match_info_free(match_info);
         MSG("query processing time: %lf [msec]\n",

@@ -666,12 +666,13 @@ main (gint argc, gchar **argv)
 
     InvIndex *inv_index;
     GTimer *timer;
+    guint idx;
 
     if (option.relay == FALSE) {
         g_print("%s: start loading document %s\n", hostname, option.datafile);
         timer = g_timer_new();
         g_timer_start(timer);
-        docset = document_set_load(option.datafile);
+        docset = document_set_load(option.datafile, option.doc_limit);
         g_timer_stop(timer);
 
         g_print("%s: document loaded: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
@@ -759,6 +760,7 @@ main (gint argc, gchar **argv)
             }
             g_timer_stop(timer);
             g_print("%s: load index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+            fixed_index_check_validity(findex);
         }
     }
 

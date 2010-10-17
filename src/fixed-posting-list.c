@@ -94,6 +94,37 @@ fixed_posting_list_check (FixedPostingList *fplist, guint32 doc_id, gint32 pos)
     return NULL;
 }
 
+static inline guint64 *
+move_next(guint64 *p1, guint64 *p1_sentinel, guint64 *p2)
+{
+    gulong idx1, idx2, tmp;
+
+    if (p1 + 1000 >= p1_sentinel){
+        return p1+1;
+    }
+    if (p1 + 1 == p2){
+        return p2;
+    }
+
+    idx1 = 0;
+    idx2 = 1000;
+    while(idx1 != idx2){
+        tmp = (idx1 + idx2) >> 1;
+        if (p1[tmp] > p1[idx2]){
+            idx2 = tmp;
+        } else {
+            if (tmp == idx1) {
+                return p1 + 1;
+            } else {
+                idx1 = tmp;
+            }
+        }
+    }
+
+    g_printerr("cannot reach here.\n");
+}
+
+
 FixedPostingList *
 fixed_posting_list_select_successor (FixedPostingList *base_list,
                                      FixedPostingList *succ_list,
@@ -106,6 +137,7 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
     guint64 *p1_sentinel, *p2_sentinel;
     FixedPostingList *fplist;
     guint size = 0;
+    guint alloc_size = 1;
     PostingPair *pairs = NULL;
     gint soffset = offset;
 
@@ -115,6 +147,7 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
     outer = succ_list;
     soffset = offset;
 
+    pairs = g_malloc(alloc_size * sizeof(PostingPair));
     p1 = (guint64 *) inner->pairs;
     p2 = (guint64 *) outer->pairs;
     p1_sentinel = (guint64 *) inner->pairs + base_list->size;
@@ -123,12 +156,17 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
     while(p1 != p1_sentinel && p2 != p2_sentinel){
         if (*p1 + soffset == *p2){
             size++;
-            pairs = g_realloc(pairs, size * sizeof(PostingPair));
+            if (size > alloc_size){
+                alloc_size <<= 1;
+                pairs = g_realloc(pairs, alloc_size * sizeof(PostingPair));
+            }
             pairs[size - 1] = *(PostingPair *)p1;
             p1++; p2++;
         } else if (*p1 + soffset < *p2) {
+            // p1 = move_next(p1, p1_sentinel, p2);
             p1++;
         } else {
+            // p2 = move_next(p2, p2_sentinel, p1);
             p2++;
         }
     }

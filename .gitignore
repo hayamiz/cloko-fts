@@ -12,3 +12,8 @@ stamp-h1
 /libtool
 /config.status
 /src/fts-node
+/indexing-log.20101017-033207.txt
+/indexing-log.20101017-033301.txt
+/src/config.h.in
+/test_query_34_2.txt
+/test_query_cloko001.txt

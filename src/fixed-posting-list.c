@@ -133,6 +133,7 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
     fplist = g_malloc(sizeof(FixedPostingList));
     fplist->size = size;
     fplist->pairs = pairs;
+    fplist->filter = NULL;
 
     return fplist;
 }

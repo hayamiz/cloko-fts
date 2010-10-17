@@ -373,17 +373,11 @@ process_query (const gchar *query, process_env_t *env)
             arg = g_async_queue_pop(search_queue);
             tmp_list = fixed_posting_list_doc_intersect(base_list,
                                                          arg->ret);
-            // if (base_list != NULL){
-            //     fixed_posting_list_free(base_list);
-            // }
-            if (arg->ret == NULL){
-                fixed_posting_list_free(arg->ret);
-            }
             base_list = tmp_list;
             g_free(arg);
         }
 
-        if (base_list){
+        if (base_list != NULL){
             pair = base_list->pairs;
             ret.size = sz = fixed_posting_list_size(base_list);
             for(i = 0;i < sz;i++){

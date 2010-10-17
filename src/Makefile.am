@@ -1,9 +1,9 @@
-lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
-# noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
+# lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
+noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
-LDFLAGS = -no-undefined
+LDFLAGS = -no-undefined -Wl,--eh-frame-hdr -ltcmalloc
 
 libinv_index_la_SOURCES =			\
 	inv-index.c				\

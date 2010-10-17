@@ -4,6 +4,7 @@
 #include <string.h>
 #include <glib.h>
 #include <mecab.h>
+#include <bloom-filter.h>
 
 typedef struct _Document {
     gint  id;
@@ -35,14 +36,6 @@ typedef struct _Phrase {
     gchar **terms;
 } Phrase;
 
-typedef struct _DocIdCell {
-    
-} DocIdCell;
-
-typedef struct _DocIdList {
-    
-} DocIdList;
-
 typedef struct _PostingPair {
     guint32 doc_id;
     gint32 pos;
@@ -59,6 +52,7 @@ typedef struct _InvIndex {
 typedef struct _FixedPostingList {
     guint size;
     PostingPair *pairs;
+    BloomFilter *filter;
 } FixedPostingList;
 
 typedef struct _FixedIndex {
@@ -126,12 +120,6 @@ FixedPostingList *fixed_posting_list_select_successor (FixedPostingList *base_li
 FixedPostingList *fixed_posting_list_doc_compact (FixedPostingList *fplist1);
 FixedPostingList *fixed_posting_list_doc_intersect (FixedPostingList *fplist1,
                                                     FixedPostingList *fplist2);
-
-DocIdList *doc_id_list_new(FixedPostingList *fplist);
-DocIdList *doc_id_list_free(DocIdList *list);
-guint      doc_id_list_size(DocIdList *list);
-DocIdList *doc_id_list_intersect(DocIdList* list1, DocIdList* list2);
-gboolean   doc_id_list_check(DocIdList *list, guint doc_id);
 
 FixedIndex       *fixed_index_new        (InvIndex *inv_index);
 void              fixed_index_free       (FixedIndex *fixed_index);

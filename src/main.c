@@ -354,7 +354,7 @@ process_query (const gchar *query, process_env_t *env)
             }
         }
         MSG("query processing time: %lf [msec]\n",
-            (time = g_timer_elapsed(env->timer, NULL) / 1000));
+            (time = g_timer_elapsed(env->timer, NULL) * 1000));
     }
     g_timer_start(env->timer);
 
@@ -367,7 +367,7 @@ process_query (const gchar *query, process_env_t *env)
         g_free(tmp);
     }
     MSG("process_query: aggregated: %lf msec\n",
-        (time = g_timer_elapsed(env->timer, NULL) / 1000));
+        (time = g_timer_elapsed(env->timer, NULL) * 1000));
 
     // g_print("# <query_id> %d\n", ret.size);
     // printf(buf->str);
@@ -642,7 +642,7 @@ main (gint argc, gchar **argv)
                 sz = option.doc_limit;
             }
 
-            Tokenizer *tok;
+            Tokenizer *tok = NULL;
             g_timer_start(timer);
             for(idx = 0;idx < sz;idx++){
                 Document *doc = document_set_nth(docset, idx);
@@ -653,11 +653,11 @@ main (gint argc, gchar **argv)
                 guint pos = 0;
                 gint doc_id = document_id(doc);
                 if (doc_id % 5000 == 0){
-                    g_print("%s: %d/%d documents indexed: %d terms.\n",
-                            hostname,
-                            doc_id,
-                            document_set_size(docset),
-                            inv_index_numterms(inv_index));
+                    g_printerr("%s: %d/%d documents indexed: %d terms.\n",
+                               hostname,
+                               doc_id,
+                               document_set_size(docset),
+                               inv_index_numterms(inv_index));
                 }
                 while((term = tokenizer_next(tok)) != NULL){
                     inv_index_add_term(inv_index, term, doc_id, pos++);

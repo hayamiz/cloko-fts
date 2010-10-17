@@ -6,6 +6,8 @@
 #include <mecab.h>
 #include <bloom-filter.h>
 
+struct _DocumentSet;
+
 typedef struct _Document {
     gint  id;
     guint pos;
@@ -15,8 +17,8 @@ typedef struct _Document {
     const gchar *title;
     const gchar *url;
     const gchar *url_top;
-    const gchar *docset_buf;
     const gchar *body_pointer;
+    struct _DocumentSet *docset;
 } Document;
 
 typedef struct _DocumentSet {
@@ -60,7 +62,11 @@ typedef struct _FixedIndex {
     GHashTable *hash;
 } FixedIndex;
 
-Document    *document_parse        (const gchar *text, guint offset, gint doc_id, const gchar **endptr);
+Document    *document_parse        (DocumentSet  *docset,
+                                    const gchar  *text,
+                                    guint         offset,
+                                    gint          doc_id,
+                                    const gchar **endptr);
 gint         document_id           (Document *doc);
 guint        document_position     (Document *doc);
 const gchar *document_body_pointer (Document *doc);
@@ -70,7 +76,7 @@ const gchar *document_url          (Document *doc);
 guint        document_time         (Document *doc);
 gchar       *document_raw_record   (Document *doc);
 
-DocumentSet *document_set_load   (const gchar *path);
+DocumentSet *document_set_load   (const gchar *path, guint limit);
 guint        document_set_size   (DocumentSet *docset);
 Document    *document_set_nth    (DocumentSet *docset, guint idx);
 const gchar *document_set_buffer (DocumentSet *docset);

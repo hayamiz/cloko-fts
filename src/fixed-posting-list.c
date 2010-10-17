@@ -1,16 +1,21 @@
 
 #include "inv-index.h"
 
+struct fixed_posting_list_new_rec {
+    guint idx;
+    FixedPostingList *fplist;
+};
 static gboolean
 fixed_posting_list_new_gtree_func(gpointer key, gpointer value, gpointer data)
 {
-    PostingPair **pair = (PostingPair **) data;
-    **pair = *((PostingPair *)key);
-    (*pair)++;
+    struct fixed_posting_list_new_rec *rec =
+        (struct fixed_posting_list_new_rec *) data;
+    PostingPair *pair = rec->fplist->pairs + rec->idx;
+    *pair = *((PostingPair *)key);
+    bloom_filter_insert(rec->fplist->filter, ((PostingPair *)key)->doc_id);
 
     return FALSE;
 }
-
 FixedPostingList *
 fixed_posting_list_new (PostingList *list)
 {
@@ -19,9 +24,12 @@ fixed_posting_list_new (PostingList *list)
     fplist = g_malloc(sizeof(FixedPostingList));
     fplist->size = posting_list_size(list);
     fplist->pairs = g_malloc(sizeof(PostingPair) * fplist->size);
+    fplist->filter = bloom_filter_new(NULL, 0.01, fplist->size);
 
-    tmp = fplist->pairs;
-    g_tree_foreach(list->list, fixed_posting_list_new_gtree_func, &tmp);
+    struct fixed_posting_list_new_rec rec;
+    rec.idx = 0;
+    rec.fplist = fplist;
+    g_tree_foreach(list->list, fixed_posting_list_new_gtree_func, &rec);
 
     return fplist;
 }

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 Document *
-document_parse (const gchar *text, guint offset, gint doc_id, const gchar **endptr)
+document_parse (DocumentSet *docset, const gchar *text, guint offset, gint doc_id, const gchar **endptr)
 {
     Document *doc = g_malloc(sizeof(Document));
     const gchar *ptr;
@@ -11,7 +11,7 @@ document_parse (const gchar *text, guint offset, gint doc_id, const gchar **endp
 
     doc->id = doc_id;
     doc->pos = offset;
-    doc->docset_buf = text;
+    doc->docset = docset;
 
     ptr = text + offset;
     if (*ptr != '#' || *(++ptr) != ' '){
@@ -103,5 +103,9 @@ document_time         (Document *doc)
 gchar *
 document_raw_record   (Document *doc)
 {
-    return (doc ? g_strndup(doc->docset_buf + doc->pos, doc->size + 5) : NULL);
+    if (doc->docset){
+        return (doc ? g_strndup(doc->docset->buffer + doc->pos, doc->size + 5) : NULL);
+    } else {
+        return NULL;
+    }
 }

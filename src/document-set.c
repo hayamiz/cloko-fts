@@ -2,40 +2,52 @@
 #include <stdio.h>
 
 DocumentSet *
-document_set_load (const gchar *path)
+document_set_load (const gchar *path, guint limit)
 {
-    DocumentSet *docset = g_malloc(sizeof(DocumentSet));
-    GString *strbuffer = g_string_new("");
+    DocumentSet *docset;
+    GString *strbuffer;
     char buf[4096];
+    guint endptr_idx;
+    const gchar *endptr;
+    const gchar *sentinel;
+    FILE *fp;
+    guint doc_id;
+    Document  *doc;
 
-    FILE *fp = fopen(path, "r");
+    docset = g_malloc(sizeof(DocumentSet));
+    strbuffer = g_string_new("");
+
+    fp = fopen(path, "r");
     if (fp == NULL){
         return NULL;
     }
+
+    doc_id = 0;
+    docset->size = 0;
+    docset->docs = NULL;
+    endptr_idx = 0;
+    endptr = strbuffer->str;
     while(fgets(buf, 4096 - 1, fp) != NULL){
         g_string_append(strbuffer, buf);
+        if (strstr(strbuffer->str + endptr_idx, "EOD\n") == NULL){
+            continue;
+        }
+
+        doc = document_parse(docset, strbuffer->str, endptr_idx, doc_id++, &endptr);
+        if (doc == NULL) break;
+        endptr_idx = endptr - strbuffer->str;
+        docset->size++;
+        docset->docs = g_realloc(docset->docs, sizeof(Document *) * docset->size);
+        docset->docs[docset->size - 1] = doc;
+        if (limit > 0 && doc_id == limit){
+            break;
+        }
     }
     fclose(fp);
 
     docset->buffer = strbuffer->str;
-    docset->buffer_size = strbuffer->len;
+    docset->buffer_size = endptr - strbuffer->str;
     g_string_free(strbuffer, FALSE);
-
-    Document  *doc;
-    docset->size = 0;
-    docset->docs = NULL;
-    const gchar *endptr = docset->buffer;
-    const gchar *sentinel = docset->buffer + docset->buffer_size;
-    while(endptr < sentinel){
-        doc = document_parse(docset->buffer, endptr - docset->buffer, docset->size, &endptr);
-        if (doc == NULL){
-            break;
-        }
-        docset->size++;
-        docset->docs = g_realloc(docset->docs, sizeof(Document *) * docset->size);
-        docset->docs[docset->size - 1] = doc;
-    }
-
 
     return docset;
 }

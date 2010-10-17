@@ -113,7 +113,7 @@ module FullTextSearch
         ret_size = $~[2].to_i
         result_head = $~[0]
       else
-        raise RuntimeError.new("Invalid response for QUERY command: #{result_line.inspect}")
+        raise RuntimeError.new("Invalid response for QUERY command: #{result_head.inspect}")
       end
       ret_body = @sock.recv_all(ret_size)
 

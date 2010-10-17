@@ -238,7 +238,8 @@ run(void)
         close(sockfd);
         exit(EXIT_FAILURE);
     }
-    MSG("Start listening on port %s.\n", option.port);
+    g_printerr("[%s] Start listening on port %s.\n",
+               hostname, option.port);
 
     gchar recv_block[RECV_BLOCK_SIZE];
     GString *recvbuf;
@@ -516,19 +517,23 @@ child_downstreamer (void *data)
 reconnect:
     for(retry = 0;;retry++){
         if (retry > option.timeout){
-            MSG("cannot connect to child %s\n", child_hostname->str);
+            g_printerr("[%s] cannot connect to child %s\n",
+                       hostname, child_hostname->str);
             close(sockfd);
             exit(EXIT_FAILURE);
         }
         if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1){
             // retry
-            MSG("failed to connect. will retry: errno = %d\n", errno);
+            g_printerr("[%s] failed to connect. will retry: errno = %d\n",
+                       hostname, errno);
             g_usleep(1000000);
             continue;
         }
         break;
     }
-    MSG("connected to child %s\n", child_hostname->str);
+    g_printerr("[%s] connected to child %s\n",
+               hostname,
+               child_hostname->str);
 
     arg->sockfd = sockfd;
     if (pthread_create(&upstreamer, NULL, child_upstreamer, arg) != 0){

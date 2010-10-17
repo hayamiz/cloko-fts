@@ -70,6 +70,8 @@ module FullTextSearch
           cmd_query(query[:phrases])
         end
       }
+      @sock.flush
+      @sock.close_write
 
       queries.each do |_|
         results.push(cmd_result())
@@ -83,7 +85,7 @@ module FullTextSearch
 
     def connect
       return unless @sock.nil?
-      @sock = TCPSocket.open(@node, @port)
+      @sock = IO.popen("netcat #{@node} #{@port}", "r+")
     end
 
     def disconnect
@@ -98,7 +100,7 @@ module FullTextSearch
       query = query.map{|phrase| normalize_phrase(phrase)}.compact
       cmdstr = "QUERY " + query.join(" ") + "\n"
 
-      @sock.send_all(cmdstr)
+      @sock.write(cmdstr)
     end
 
     def cmd_result()
@@ -115,7 +117,7 @@ module FullTextSearch
       else
         raise RuntimeError.new("Invalid response for QUERY command: #{result_head.inspect}")
       end
-      ret_body = @sock.recv_all(ret_size)
+      ret_body = @sock.read(ret_size)
 
       {
         :num => ret_doc_num,

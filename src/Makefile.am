@@ -1,5 +1,5 @@
-lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
-# noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
+# lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
+noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
@@ -20,12 +20,18 @@ libbloom_filter_la_SOURCES =			\
 
 libbloom_filter_la_LIBADD = -lm
 
-bin_PROGRAMS = fts-node
+bin_PROGRAMS = fts-node fts-search
 
 fts_node_SOURCES =				\
 	main.c
 
+fts_search_SOURCES =				\
+	fts-search.c
+
 fts_node_LDADD =				\
 	libinv_index.la				\
 	libbloom_filter.la			\
+	$(GLIB_LIBS)
+
+fts_search_LDADD =				\
 	$(GLIB_LIBS)

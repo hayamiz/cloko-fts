@@ -99,7 +99,7 @@ typedef struct _child_arg_t {
     const gchar *child_hostname;
     gint sockfd;
     pthread_barrier_t *barrier;
-    const gchar **query;
+    gchar **query;
     GAsyncQueue *queue;
 } child_arg_t;
 
@@ -156,6 +156,8 @@ parse_args (gint *argc, gchar ***argv)
         goto failure;
     }
 
+    g_option_context_free(context);
+
     return;
 failure:
     exit (EXIT_FAILURE);
@@ -171,7 +173,7 @@ run(void)
     gchar **child_hostnames = NULL;
     gint i;
     GAsyncQueue *queue = g_async_queue_new();
-    const gchar *query;
+    gchar *query;
     GThreadPool *thread_pool;
 
     thread_pool = g_thread_pool_new(phrase_search_thread_func,
@@ -290,6 +292,7 @@ accept_again:
             env.timer = timer;
             env.thread_pool = thread_pool;
             process_query(query, &env);
+            g_free(query);
         }
         g_string_erase(recvbuf, 0, ((eolptr + 1) - recvbuf->str) * sizeof(gchar));
         goto retry;
@@ -313,6 +316,9 @@ quit:
     for(i = 0;i < child_num;i++){
         pthread_join(child_threads[i], NULL);
     }
+    g_thread_pool_free(thread_pool, TRUE, TRUE);
+    g_async_queue_unref(queue);
+    g_timer_destroy(timer);
 }
 
 void
@@ -365,8 +371,15 @@ process_query (const gchar *query, process_env_t *env)
 
         for(;num_phrases > 0;num_phrases--){
             arg = g_async_queue_pop(search_queue);
-            base_list = fixed_posting_list_doc_intersect(base_list,
+            tmp_list = fixed_posting_list_doc_intersect(base_list,
                                                          arg->ret);
+            // if (base_list != NULL){
+            //     fixed_posting_list_free(base_list);
+            // }
+            if (arg->ret == NULL){
+                fixed_posting_list_free(arg->ret);
+            }
+            base_list = tmp_list;
             g_free(arg);
         }
 
@@ -374,7 +387,9 @@ process_query (const gchar *query, process_env_t *env)
             pair = base_list->pairs;
             ret.size = sz = fixed_posting_list_size(base_list);
             for(i = 0;i < sz;i++){
-                g_string_append(output_body, document_raw_record(document_set_nth(docset, pair->doc_id)));
+                gchar *record = document_raw_record(document_set_nth(docset, pair->doc_id));
+                g_string_append(output_body, record);
+                g_free(record);
                 pair++;
             }
             fixed_posting_list_free(base_list);
@@ -382,6 +397,7 @@ process_query (const gchar *query, process_env_t *env)
         g_match_info_free(match_info);
         MSG("query processing time: %lf [msec]\n",
             (time = g_timer_elapsed(env->timer, NULL) * 1000));
+        g_regex_unref(regex);
     }
     g_timer_start(env->timer);
 
@@ -415,6 +431,7 @@ process_query (const gchar *query, process_env_t *env)
     }
     g_string_free(output_header, TRUE);
     g_string_free(output_body, TRUE);
+    g_async_queue_unref(search_queue);
     MSG("==== process_query: finished ====\n");
 }
 
@@ -425,12 +442,13 @@ phrase_search_thread_func (gpointer data, gpointer user_data)
     Tokenizer *tok;
     FixedPostingList *list;
     Phrase *phrase;
-    const gchar *term;
+    gchar *term;
 
     phrase = phrase_new();
     tok = tokenizer_new(arg->phrase_str);
     while((term = tokenizer_next(tok)) != NULL){
         phrase_append(phrase, term);
+        g_free(term);
     }
     list = fixed_index_phrase_get(findex, phrase);
 
@@ -772,6 +790,8 @@ main (gint argc, gchar **argv)
             g_print("%s: load index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
             fixed_index_check_validity(findex);
         }
+
+        g_timer_destroy(timer);
     }
 
     if (option.daemon){

@@ -9,7 +9,7 @@ inv_index_new (void)
     inv_index->hash = g_hash_table_new_full(g_str_hash,
                                             g_str_equal,
                                             g_free,
-                                            posting_list_free);
+                                            (GDestroyNotify) posting_list_free);
 
     return inv_index;
 }

@@ -62,7 +62,7 @@ tokenizer_free (Tokenizer *tok)
     g_free(tok);
 }
 
-const gchar *
+gchar *
 tokenizer_next (Tokenizer *tok)
 {
     const mecab_node_t *node = tok->cur_node;
@@ -75,7 +75,7 @@ tokenizer_next (Tokenizer *tok)
         return NULL;
     }
 
-    const gchar *term;
+    gchar *term;
     if (node->length > 0){
         term = g_strndup(node->surface, node->length);
     } else {

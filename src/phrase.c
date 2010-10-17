@@ -19,6 +19,7 @@ phrase_free (Phrase *phrase)
     for(i = 0;i < phrase->size;i++){
         g_free(phrase->terms[i]);
     }
+    g_free(phrase->terms);
     g_free(phrase);
 }
 

@@ -86,7 +86,7 @@ Tokenizer   *tokenizer_new2 (const gchar *str, guint len);
 Tokenizer   *tokenizer_renew  (Tokenizer *tok, const gchar *str);
 Tokenizer   *tokenizer_renew2 (Tokenizer *tok, const gchar *str, guint len);
 void         tokenizer_free (Tokenizer *tok);
-const gchar *tokenizer_next (Tokenizer *tok);
+gchar       *tokenizer_next (Tokenizer *tok);
 
 Phrase      *phrase_new    (void);
 void         phrase_free   (Phrase *phrase);

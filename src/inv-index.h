@@ -17,7 +17,7 @@ typedef struct _Document {
     const gchar *title;
     const gchar *url;
     const gchar *url_top;
-    const gchar *body_pointer;
+    guint body_pointer_offset;
     struct _DocumentSet *docset;
 } Document;
 

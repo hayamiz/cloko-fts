@@ -126,17 +126,19 @@ parse_args (gint *argc, gchar ***argv)
     g_option_context_add_main_entries (context, entries, NULL);
     if (!g_option_context_parse (context, argc, argv, &error))
     {
-        MSG("option parsing failed: %s\n", error->message);
+        g_printerr("[%s]: option parsing failed: %s\n",
+                   hostname,
+                   error->message);
         exit (EXIT_FAILURE);
     }
 
     if (option.relay == FALSE){
         if (option.datafile == NULL){
-            MSG("--datafile required\n");
+            g_printerr("[%s]: --datafile required\n", hostname);
             goto failure;
         } else {
             if (access(option.datafile, F_OK) != 0){
-                MSG("No such file or directory: %s\n", option.datafile);
+                g_printerr("[%s]: No such file or directory: %s\n", hostname, option.datafile);
                 goto failure;
             }
         }
@@ -144,12 +146,13 @@ parse_args (gint *argc, gchar ***argv)
 
     if (option.load_index &&
         access(option.load_index, F_OK) != 0){
-        MSG("No such file or directory: %s\n", option.load_index);
+        g_printerr("[%s]: No such file or directory: %s\n", hostname, option.load_index);
         goto failure;
     }
 
     if (option.save_index != NULL && option.load_index != NULL){
-        MSG("cannot specify both --save-index and --load-index\n");
+        g_printerr("[%s]: cannot specify both --save-index and --load-index\n",
+                   hostname);
         goto failure;
     }
 

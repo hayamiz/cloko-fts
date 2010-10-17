@@ -66,7 +66,7 @@ test_bloom_filter_new (void)
     cut_assert_not_null(filter);
     cut_assert_equal_uint(capacity, bloom_filter_capacity(filter));
     cut_assert_equal_double(error_rate, bloom_filter_error_rate(filter), 0.001);
-    cut_assert(0 < bloom_filter_vecsize(filter));
+    cut_assert(0 < bloom_filter_bitsize(filter));
 
     cut_assert_not_null(cut_take(bloom_filter_new(NULL, error_rate, capacity),
                                  bloom_filter_free));

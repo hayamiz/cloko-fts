@@ -700,7 +700,18 @@ main (gint argc, gchar **argv)
         g_print("%s: path: %s, # of documents: %d\n",
                 hostname, option.datafile, document_set_size(docset));
 
-        if (!option.load_index){
+        if (option.load_index) {
+            g_timer_start(timer);
+            if ((findex = fixed_index_load(option.load_index)) == NULL){
+                g_print("%s: failed to load index from '%s'\n",
+                        hostname,
+                        option.load_index);
+                exit(EXIT_FAILURE);
+            }
+            g_timer_stop(timer);
+            g_print("%s: load index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
+            fixed_index_check_validity(findex);
+        } else {
             inv_index = inv_index_new();
             guint idx;
             guint sz = document_set_size(docset);
@@ -762,27 +773,16 @@ main (gint argc, gchar **argv)
                             option.save_index);
                     exit(EXIT_FAILURE);
                 }
-                if (chmod(option.save_index, S_IRUSR) != 0){
-                    g_print("%s: failed to chmod index '%s'\n",
-                            hostname,
-                            option.save_index);
-                    // exit(EXIT_FAILURE);
-                }
+                /* if (chmod(option.save_index, S_IRUSR) != 0){ */
+                /*     g_print("%s: failed to chmod index '%s'\n", */
+                /*             hostname, */
+                /*             option.save_index); */
+                /*     // exit(EXIT_FAILURE); */
+                /* } */
                 g_timer_stop(timer);
                 g_print("%s: save index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
             }
             inv_index_free(inv_index);
-        } else {
-            g_timer_start(timer);
-            if ((findex = fixed_index_load(option.load_index)) == NULL){
-                g_print("%s: failed to load index from '%s'\n",
-                        hostname,
-                        option.load_index);
-                exit(EXIT_FAILURE);
-            }
-            g_timer_stop(timer);
-            g_print("%s: load index: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
-            fixed_index_check_validity(findex);
         }
 
         g_timer_destroy(timer);

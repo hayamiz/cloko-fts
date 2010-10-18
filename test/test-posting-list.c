@@ -190,6 +190,13 @@ test_posting_list_select_successor (void)
     offset         = 3;
     base_list = posting_list_select_successor(base_list, successor_list, offset);
     cut_assert_equal_uint(0, posting_list_size(base_list));
+
+    posting_list_free(list1, TRUE);
+    posting_list_free(list2, TRUE);
+    posting_list_free(list3, TRUE);
+    posting_list_free(list4, TRUE);
+    posting_list_free(list5, TRUE);
+    posting_list_free(list6, TRUE);
 }
 
 void

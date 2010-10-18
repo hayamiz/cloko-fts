@@ -107,7 +107,7 @@ fixed_index_phrase_get (FixedIndex *findex, Phrase *phrase)
         succ_list = fixed_index_get(findex, phrase_nth(phrase, phrase_idx));
         FixedPostingList *tmp;
         tmp = fixed_posting_list_select_successor(base_list, succ_list, phrase_idx);
-        if (phrase_idx > 1) fixed_posting_list_free(base_list);
+        fixed_posting_list_free(base_list);
         base_list = tmp;
     }
 

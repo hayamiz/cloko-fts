@@ -1,10 +1,12 @@
 
 #include "test.h"
 
+
+static Phrase *phrase;
+
 void test_phrase_new (void);
 void test_phrase_append (void);
 void test_phrase_nth (void);
-
 
 void test_new_inv_index (void);
 void test_inv_index_add (void);
@@ -13,9 +15,21 @@ void test_inv_index_phrase_get (void);
 
 
 void
+cut_setup (void)
+{
+    phrase = NULL;
+}
+
+void
+cut_teardown (void)
+{
+    if (phrase)
+        phrase_free(phrase);
+}
+
+void
 test_phrase_new (void)
 {
-    Phrase *phrase;
     phrase = phrase_new();
     cut_assert_not_null(phrase);
     cut_assert_equal_uint(0, phrase_size(phrase));
@@ -24,20 +38,17 @@ test_phrase_new (void)
 void
 test_phrase_append (void)
 {
-    Phrase *phrase;
     phrase = phrase_new();
     phrase_append(phrase, "foo");
     cut_assert_equal_uint(1, phrase_size(phrase));
 
     phrase_append(phrase, "bar");
     cut_assert_equal_uint(2, phrase_size(phrase));
-    phrase_free(phrase);
 }
 
 void
 test_phrase_nth (void)
 {
-    Phrase *phrase;
     phrase = phrase_new();
     cut_assert_null(phrase_nth(phrase, 0));
 
@@ -48,7 +59,7 @@ test_phrase_nth (void)
     cut_assert_equal_string("bar", phrase_nth(phrase, 1));
     cut_assert_null(phrase_nth(phrase, 2));
 }
- 
+
 void
 test_new_inv_index (void)
 {

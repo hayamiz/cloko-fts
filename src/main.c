@@ -374,6 +374,8 @@ process_query (const gchar *query, process_env_t *env)
             tmp_list = fixed_posting_list_doc_intersect(base_list,
                                                          arg->ret);
             base_list = tmp_list;
+            fixed_posting_list_free(base_list);
+            fixed_posting_list_free(arg->ret);
             g_free(arg);
         }
 

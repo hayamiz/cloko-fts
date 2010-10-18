@@ -186,11 +186,12 @@ fixed_posting_list_doc_compact (FixedPostingList *fplist)
     if (fixed_posting_list_size(fplist) == 0) return fplist;
 
     FixedPostingList *ret;
+    guint doc_id;
     ret = g_malloc(sizeof(FixedPostingList));
     ret->size = 1;
     ret->pairs = g_malloc(sizeof(PostingPair));
 
-    guint doc_id = fplist->pairs[0].doc_id;
+    doc_id = fplist->pairs[0].doc_id;
     ret->pairs[0].doc_id = doc_id;
     ret->pairs[0].pos = 0;
     PostingPair *pair = fplist->pairs + 1;

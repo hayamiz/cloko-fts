@@ -10,6 +10,7 @@ fixed_index_new_ghash_func(gpointer key, gpointer val, gpointer user_data)
                         fixed_posting_list_new((PostingList *) val));
 }
 
+/* term (key in hash table) is strdup-ed. */
 FixedIndex *
 fixed_index_new        (InvIndex *inv_index)
 {
@@ -74,9 +75,16 @@ fixed_index_numterms   (FixedIndex *findex)
 FixedPostingList *
 fixed_index_get        (FixedIndex *findex, const gchar *term)
 {
+    FixedPostingList *fplist;
+
     if (!findex) return NULL;
 
-    return g_hash_table_lookup(findex->hash, term);
+    fplist = g_hash_table_lookup(findex->hash, term);
+
+    if (!fplist)
+        return NULL;
+
+    return fixed_posting_list_copy(fplist);
 }
 
 FixedPostingList *

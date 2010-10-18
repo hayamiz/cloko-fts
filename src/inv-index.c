@@ -27,6 +27,7 @@ inv_index_numterms (InvIndex *inv_index)
     return g_hash_table_size(inv_index->hash);
 }
 
+/* term (key of hash table) is strdup-ed.  */
 void
 inv_index_add_term (InvIndex *inv_index, const gchar *term, gint doc_id, gint pos)
 {
@@ -35,7 +36,7 @@ inv_index_add_term (InvIndex *inv_index, const gchar *term, gint doc_id, gint po
 
     if ((posting_list = g_hash_table_lookup(hash_table, term)) == NULL){
         posting_list = posting_list_new();
-        g_hash_table_insert(hash_table, (gpointer) term, posting_list);
+        g_hash_table_insert(hash_table, (gpointer) g_strdup(term), posting_list);
     }
 
     posting_list_add(posting_list, doc_id, pos);

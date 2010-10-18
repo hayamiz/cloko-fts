@@ -41,7 +41,7 @@ posting_list_new (void)
 
 static posting_list_free_gtree_func(gpointer key, gpointer value, gpointer data)
 {
-    g_free((PostingPair *) key);
+    g_slice_free1(sizeof(PostingPair), (PostingPair *) key);
 }
 void
 posting_list_free (PostingList *posting_list, gboolean free_pairs)
@@ -50,7 +50,7 @@ posting_list_free (PostingList *posting_list, gboolean free_pairs)
         g_tree_foreach(posting_list->list, posting_list_free_gtree_func, NULL);
     }
     g_tree_unref(posting_list->list);
-    g_slice_free1(sizeof(PostingPair), posting_list);
+    g_free(posting_list);
 }
 
 static gboolean

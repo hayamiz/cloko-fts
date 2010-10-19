@@ -3,13 +3,13 @@
 #include "test.h"
 
 static const gchar *test_data_file;
+static const gchar *docset001_path;
 
-void cut_setup (void);
-
-void test_document_parse (void);
-
-void test_document_set_load (void);
-
+// general purpose variables
+static DocumentSet *docset;
+static Document *doc;
+static InvIndex *inv_index;
+static FixedIndex *findex;
 
 void cut_setup (void)
 {
@@ -20,6 +20,26 @@ void cut_setup (void)
 
     test_data_file = cut_take_string(cut_build_fixture_data_path("test_load_data.txt",
                                                                  NULL));
+    docset001_path = cut_take_string(cut_build_fixture_data_path("docset001.txt",
+                                                                 NULL));
+
+    doc = NULL;
+    docset = NULL;
+    inv_index = NULL;
+    findex = NULL;
+}
+
+void
+cut_teardown (void)
+{
+    if (doc)
+        document_free(doc);
+    if (docset)
+        document_set_free(docset);
+    if (inv_index)
+        inv_index_free(inv_index);
+    if (findex)
+        fixed_index_free(findex);
 }
 
 void
@@ -27,7 +47,7 @@ test_document_parse (void)
 {
     Document *doc;
     DocumentSet *docset;
-    const gchar *str = cut_get_fixture_data_string(test_data_file, NULL);
+    gchar *str = (gchar *) cut_get_fixture_data_string(test_data_file, NULL);
     const gchar *endptr;
     guint offset;
     guint doc_id;
@@ -110,4 +130,13 @@ test_document_set_load (void)
                             document_url(doc));
     cut_assert_equal_string("# http://0-3459.at.webry.info http://0-3459.at.webry.info/201001/article_2.html きょうの判決（1月7日・横浜地裁） 1263180592\n・・・この日の午前中は、以下の判決の他に傷害事件の審理もあり、証人尋問が行われた。\n当該事件の被告は捜査段階での供述を公判で一部翻したようなのだが、その割には当の被告に緊張感の欠片も見られなかった。\nEOD\n",
                             cut_take_string(document_raw_record(doc)));
+}
+
+void
+test_document_set_make_fixed_index (void)
+{
+    docset = document_set_load(docset001_path, 0);
+    findex = document_set_make_fixed_index(docset);
+
+    cut_assert_not_null(findex);
 }

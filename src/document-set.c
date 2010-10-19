@@ -82,3 +82,57 @@ document_set_buffer (DocumentSet *docset)
     return docset->buffer;
 }
 
+InvIndex *
+document_set_make_index (DocumentSet *docset)
+{
+    InvIndex *inv_index;
+    Document *doc;
+    Tokenizer *tok;
+    guint i;
+    gint pos;
+    guint doc_id;
+    gchar *term;
+
+    g_return_val_if_fail(docset, NULL);
+
+    inv_index = inv_index_new();
+    tok = NULL;
+    pos = 0;
+
+    for (i = 0; i < document_set_size(docset); i++) {
+        doc = document_set_nth(docset, i);
+        doc_id = document_id(doc);
+        tok = tokenizer_renew2(tok,
+                               document_body_pointer(doc),
+                               document_body_size(doc));
+
+        while(term = tokenizer_next(tok)) {
+            inv_index_add_term(inv_index, term, doc_id, pos++);
+            g_free(term);
+        }
+
+        pos = 0;
+        tok = tokenizer_renew(tok, document_title(doc));
+
+        while(term = tokenizer_next(tok)){
+            inv_index_add_term(inv_index, term, doc_id, G_MININT + (pos++));
+            g_free(term);
+        }
+    }
+
+    return inv_index;
+}
+
+FixedIndex *
+document_set_make_fixed_index (DocumentSet *docset)
+{
+    InvIndex *inv_index;
+    FixedIndex *findex;
+
+    inv_index = document_set_make_index(docset);
+    findex = fixed_index_new(inv_index);
+
+    inv_index_free(inv_index);
+
+    return findex;
+}

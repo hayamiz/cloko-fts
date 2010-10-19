@@ -43,11 +43,11 @@ test_tokenizer_next (void)
     Tokenizer *tok;
 
     tok = tokenizer_new(sample_string1);
-    cut_assert_equal_string("これ", tokenizer_next(tok));
-    cut_assert_equal_string("は"  , tokenizer_next(tok));
-    cut_assert_equal_string("ペン", tokenizer_next(tok));
-    cut_assert_equal_string("です", tokenizer_next(tok));
-    cut_assert_equal_string("。"  , tokenizer_next(tok));
+    cut_assert_equal_string("これ", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("は"  , cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("ペン", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("です", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("。"  , cut_take_string(tokenizer_next(tok)));
     tokenizer_free(tok);
 }
 
@@ -57,27 +57,27 @@ test_tokenizer_renew (void)
     Tokenizer *tok;
 
     tok = tokenizer_new(sample_string1);
-    tokenizer_next(tok);
-    tokenizer_next(tok);
-    tokenizer_next(tok);
+    cut_take_string(tokenizer_next(tok));
+    cut_take_string(tokenizer_next(tok));
+    cut_take_string(tokenizer_next(tok));
 
     tok = tokenizer_renew(tok, sample_string1);
-    cut_assert_equal_string("これ", tokenizer_next(tok));
-    cut_assert_equal_string("は"  , tokenizer_next(tok));
-    cut_assert_equal_string("ペン", tokenizer_next(tok));
-    cut_assert_equal_string("です", tokenizer_next(tok));
-    cut_assert_equal_string("。"  , tokenizer_next(tok));
+    cut_assert_equal_string("これ", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("は"  , cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("ペン", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("です", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("。"  , cut_take_string(tokenizer_next(tok)));
     tokenizer_free(tok);
 
     tok = tokenizer_renew(NULL, sample_string2);
-    cut_assert_equal_string("これ", tokenizer_next(tok));
-    cut_assert_equal_string("は"  , tokenizer_next(tok));
-    cut_assert_equal_string("ペン", tokenizer_next(tok));
-    cut_assert_equal_string("です", tokenizer_next(tok));
-    cut_assert_equal_string("。"  , tokenizer_next(tok));
-    cut_assert_equal_string("こんにちは"  , tokenizer_next(tok));
-    cut_assert_equal_string("世界"  , tokenizer_next(tok));
-    cut_assert_equal_string("。"  , tokenizer_next(tok));
+    cut_assert_equal_string("これ", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("は"  , cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("ペン", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("です", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("。"  , cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("こんにちは"  , cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("世界"  , cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("。"  , cut_take_string(tokenizer_next(tok)));
     tokenizer_free(tok);
 }
 
@@ -91,10 +91,10 @@ test_tokenizer_renew2 (void)
     tok = tokenizer_new2(sample_string2, strlen(sample_string1));
     cut_assert_not_null(tok);
     tok = tokenizer_renew2(tok, sample_string2, strlen(sample_string1));
-    cut_assert_equal_string("これ", tokenizer_next(tok));
-    cut_assert_equal_string("は"  , tokenizer_next(tok));
-    cut_assert_equal_string("ペン", tokenizer_next(tok));
-    cut_assert_equal_string("です", tokenizer_next(tok));
-    cut_assert_equal_string("。"  , tokenizer_next(tok));
+    cut_assert_equal_string("これ", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("は"  , cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("ペン", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("です", cut_take_string(tokenizer_next(tok)));
+    cut_assert_equal_string("。"  , cut_take_string(tokenizer_next(tok)));
     tokenizer_free(tok);
 }

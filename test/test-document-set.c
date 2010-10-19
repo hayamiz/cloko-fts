@@ -87,12 +87,13 @@ test_document_parse (void)
     cut_assert_equal_string("# http://0-3459.at.webry.info http://0-3459.at.webry.info/201001/article_2.html きょうの判決（1月7日・横浜地裁） 1263180592\n・・・この日の午前中は、以下の判決の他に傷害事件の審理もあり、証人尋問が行われた。\n当該事件の被告は捜査段階での供述を公判で一部翻したようなのだが、その割には当の被告に緊張感の欠片も見られなかった。\nEOD\n",
                             cut_take_string(document_raw_record(doc)));
     cut_assert_equal_uint(295, document_body_size(doc));
+
+    g_free(docset);
 }
 
 void
 test_document_set_load (void)
 {
-    DocumentSet *docset;
     Document    *doc;
     const gchar *docset_buf;
     InvIndex *inv_index;

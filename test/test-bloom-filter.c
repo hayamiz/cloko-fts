@@ -111,7 +111,7 @@ test_bloom_filter_check (void)
     guint i;
     gdouble error_rate = 0.01;
 
-    size = 1000;
+    size = 10000;
     filter = bloom_filter_new(g_int_hash, error_rate, size);
 
     for(i = 0; i < size * 10; i++){

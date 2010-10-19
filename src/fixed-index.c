@@ -26,6 +26,7 @@ static void
 fixed_index_free_ghash_func(gpointer key, gpointer val, gpointer user_data)
 {
     fixed_posting_list_free((FixedPostingList *)val);
+    g_free(key);
 }
 
 void
@@ -53,7 +54,7 @@ fixed_index_check_validity_ghash_func(gpointer key,
     }
 }
 gboolean
-fixed_index_check_validity (FixedIndex *findex)
+fixed_index_check_validity (const FixedIndex *findex)
 {
     gboolean ret;
     ret = TRUE;
@@ -66,14 +67,14 @@ fixed_index_check_validity (FixedIndex *findex)
 }
 
 int
-fixed_index_numterms   (FixedIndex *findex)
+fixed_index_numterms   (const FixedIndex *findex)
 {
     if (!findex) return 0;
     return g_hash_table_size(findex->hash);
 }
 
 FixedPostingList *
-fixed_index_get        (FixedIndex *findex, const gchar *term)
+fixed_index_get        (const FixedIndex *findex, const gchar *term)
 {
     FixedPostingList *fplist;
 
@@ -88,7 +89,7 @@ fixed_index_get        (FixedIndex *findex, const gchar *term)
 }
 
 FixedPostingList *
-fixed_index_phrase_get (FixedIndex *findex, Phrase *phrase)
+fixed_index_phrase_get (const FixedIndex *findex, Phrase *phrase)
 {
     FixedPostingList *base_list;
     FixedPostingList *succ_list;
@@ -141,8 +142,8 @@ dump_ghash_func(gpointer key, gpointer val, gpointer data)
     fwrite(fplist->pairs, sizeof(PostingPair), fplistlen, fp);
 }
 
-FixedIndex *
-fixed_index_dump       (FixedIndex *findex, const gchar *path)
+const FixedIndex *
+fixed_index_dump       (const FixedIndex *findex, const gchar *path)
 {
     FILE *fp;
 

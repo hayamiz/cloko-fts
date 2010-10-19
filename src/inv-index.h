@@ -91,14 +91,15 @@ Tokenizer   *tokenizer_renew2 (Tokenizer *tok, const gchar *str, guint len);
 void         tokenizer_free (Tokenizer *tok);
 gchar       *tokenizer_next (Tokenizer *tok);
 
-Phrase      *phrase_new    (void);
-void         phrase_free   (Phrase *phrase);
-guint        phrase_size   (Phrase *phrase);
-void         phrase_append (Phrase *phrase, const gchar *term);
-const gchar *phrase_nth    (Phrase *phrase, guint idx);
+Phrase      *phrase_new         (void);
+Phrase      *phrase_from_string (const gchar *str);
+void         phrase_free        (Phrase *phrase);
+guint        phrase_size        (Phrase *phrase);
+void         phrase_append      (Phrase *phrase, const gchar *term);
+const gchar *phrase_nth         (Phrase *phrase, guint idx);
 
 gint posting_pair_compare_func (gconstpointer a, gconstpointer b);
-PostingPair *posting_pair_new (guint32 doc_id, gint32 pos);
+PostingPair *posting_pair_new  (guint32 doc_id, gint32 pos);
 PostingPair *posting_pair_free (PostingPair *pair);
 
 PostingList *posting_list_new   (void);
@@ -121,24 +122,24 @@ PostingList *inv_index_phrase_get (InvIndex *inv_index, Phrase *phrase);
 
 FixedPostingList *fixed_posting_list_new   (PostingList *list);
 void              fixed_posting_list_free  (FixedPostingList *posting_list);
-gboolean          fixed_posting_list_check_validity (FixedPostingList *list);
-FixedPostingList *fixed_posting_list_copy  (FixedPostingList *fixed_posting_list);
-guint             fixed_posting_list_size  (FixedPostingList *fixed_posting_list);
-PostingPair      *fixed_posting_list_check (FixedPostingList *fixed_posting_list, guint32 doc_id, gint32 pos);
-FixedPostingList *fixed_posting_list_select_successor (FixedPostingList *base_list,
-                                                       FixedPostingList *successor_list,
+gboolean          fixed_posting_list_check_validity (const FixedPostingList *list);
+FixedPostingList *fixed_posting_list_copy  (const FixedPostingList *fixed_posting_list);
+guint             fixed_posting_list_size  (const FixedPostingList *fixed_posting_list);
+PostingPair      *fixed_posting_list_check (const FixedPostingList *fixed_posting_list, guint32 doc_id, gint32 pos);
+FixedPostingList *fixed_posting_list_select_successor (const FixedPostingList *base_list,
+                                                       const FixedPostingList *successor_list,
                                                        guint offset);
-FixedPostingList *fixed_posting_list_doc_compact (FixedPostingList *fplist1);
-FixedPostingList *fixed_posting_list_doc_intersect (FixedPostingList *fplist1,
-                                                    FixedPostingList *fplist2);
+FixedPostingList *fixed_posting_list_doc_compact (const FixedPostingList *fplist1);
+FixedPostingList *fixed_posting_list_doc_intersect (const FixedPostingList *fplist1,
+                                                    const FixedPostingList *fplist2);
 
 FixedIndex       *fixed_index_new        (InvIndex *inv_index);
 void              fixed_index_free       (FixedIndex *fixed_index);
-gboolean          fixed_index_check_validity (FixedIndex *findex);
-int               fixed_index_numterms   (FixedIndex *fixed_index);
-FixedPostingList *fixed_index_get        (FixedIndex *fixed_index, const gchar *term);
-FixedPostingList *fixed_index_phrase_get (FixedIndex *fixed_index, Phrase *phrase);
-FixedIndex       *fixed_index_dump       (FixedIndex *fixed_index, const gchar *path);
+gboolean          fixed_index_check_validity (const FixedIndex *findex);
+int               fixed_index_numterms   (const FixedIndex *fixed_index);
+FixedPostingList *fixed_index_get        (const FixedIndex *fixed_index, const gchar *term);
+FixedPostingList *fixed_index_phrase_get (const FixedIndex *fixed_index, Phrase *phrase);
+const FixedIndex *fixed_index_dump       (const FixedIndex *fixed_index, const gchar *path);
 FixedIndex       *fixed_index_load       (const gchar *path);
 
 #endif

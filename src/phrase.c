@@ -2,12 +2,33 @@
 #include "inv-index.h"
 
 
+static inline void phrase_append_nocopy (Phrase *phrase, gchar *term);
+
 Phrase *
 phrase_new (void)
 {
     Phrase *phrase = g_malloc(sizeof(Phrase));
     phrase->size = 0;
     phrase->terms = NULL;
+
+    return phrase;
+}
+
+Phrase *
+phrase_from_string (const gchar *str)
+{
+    Tokenizer *tok;
+    gchar *term;
+    Phrase *phrase;
+
+    g_return_val_if_fail(str, NULL);
+
+    tok = tokenizer_new(str);
+    phrase = phrase_new();
+    while(term = tokenizer_next(tok)){
+        phrase_append_nocopy(phrase, term);
+    }
+    tokenizer_free(tok);
 
     return phrase;
 }
@@ -35,6 +56,14 @@ phrase_append (Phrase *phrase, const gchar *term)
     phrase->size ++;
     phrase->terms = g_realloc(phrase->terms, phrase->size * sizeof(const gchar *));
     phrase->terms[phrase->size - 1] = g_strdup(term);
+}
+
+static inline void
+phrase_append_nocopy (Phrase *phrase, gchar *term)
+{
+    phrase->size ++;
+    phrase->terms = g_realloc(phrase->terms, phrase->size * sizeof(const gchar *));
+    phrase->terms[phrase->size - 1] = term;
 }
 
 const gchar *

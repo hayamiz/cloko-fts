@@ -28,39 +28,6 @@ cut_teardown (void)
 }
 
 void
-test_phrase_new (void)
-{
-    phrase = phrase_new();
-    cut_assert_not_null(phrase);
-    cut_assert_equal_uint(0, phrase_size(phrase));
-}
-
-void
-test_phrase_append (void)
-{
-    phrase = phrase_new();
-    phrase_append(phrase, "foo");
-    cut_assert_equal_uint(1, phrase_size(phrase));
-
-    phrase_append(phrase, "bar");
-    cut_assert_equal_uint(2, phrase_size(phrase));
-}
-
-void
-test_phrase_nth (void)
-{
-    phrase = phrase_new();
-    cut_assert_null(phrase_nth(phrase, 0));
-
-    phrase_append(phrase, "foo");
-    phrase_append(phrase, "bar");
-
-    cut_assert_equal_string("foo", phrase_nth(phrase, 0));
-    cut_assert_equal_string("bar", phrase_nth(phrase, 1));
-    cut_assert_null(phrase_nth(phrase, 2));
-}
-
-void
 test_new_inv_index (void)
 {
     InvIndex *inv_index;
@@ -139,7 +106,6 @@ void
 test_inv_index_phrase_get (void)
 {
     InvIndex    *inv_index;
-    Phrase      *phrase;
     PostingList *list;
     PostingPair *pair;
 

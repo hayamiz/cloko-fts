@@ -36,7 +36,7 @@ fixed_posting_list_new (PostingList *list)
 }
 
 gboolean
-fixed_posting_list_check_validity(FixedPostingList *list)
+fixed_posting_list_check_validity(const FixedPostingList *list)
 {
     // check order
     guint idx;
@@ -59,7 +59,7 @@ fixed_posting_list_free (FixedPostingList *fplist)
 }
 
 FixedPostingList *
-fixed_posting_list_copy  (FixedPostingList *fplist)
+fixed_posting_list_copy  (const FixedPostingList *fplist)
 {
     if (!fplist) return NULL;
 
@@ -73,13 +73,13 @@ fixed_posting_list_copy  (FixedPostingList *fplist)
 }
 
 guint
-fixed_posting_list_size  (FixedPostingList *fplist)
+fixed_posting_list_size  (const FixedPostingList *fplist)
 {
     return (fplist ? fplist->size : 0);
 }
 
 PostingPair *
-fixed_posting_list_check (FixedPostingList *fplist, guint32 doc_id, gint32 pos)
+fixed_posting_list_check (const FixedPostingList *fplist, guint32 doc_id, gint32 pos)
 {
     if (!fplist) return NULL;
 
@@ -126,8 +126,8 @@ move_next(guint64 *p1, guint64 *p1_sentinel, guint64 *p2)
 
 
 FixedPostingList *
-fixed_posting_list_select_successor (FixedPostingList *base_list,
-                                     FixedPostingList *succ_list,
+fixed_posting_list_select_successor (const FixedPostingList *base_list,
+                                     const FixedPostingList *succ_list,
                                      guint offset)
 {
     if (!base_list) return NULL;
@@ -141,7 +141,7 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
     PostingPair *pairs = NULL;
     gint soffset = offset;
 
-    FixedPostingList *inner, *outer;
+    const FixedPostingList *inner, *outer;
 
     inner = base_list;
     outer = succ_list;
@@ -180,10 +180,10 @@ fixed_posting_list_select_successor (FixedPostingList *base_list,
 }
 
 FixedPostingList *
-fixed_posting_list_doc_compact (FixedPostingList *fplist)
+fixed_posting_list_doc_compact (const FixedPostingList *fplist)
 {
     if (!fplist) return NULL;
-    if (fixed_posting_list_size(fplist) == 0) return fplist;
+    if (fixed_posting_list_size(fplist) == 0) return NULL;
 
     FixedPostingList *ret;
     guint doc_id;
@@ -210,8 +210,8 @@ fixed_posting_list_doc_compact (FixedPostingList *fplist)
 }
 
 FixedPostingList *
-fixed_posting_list_doc_intersect (FixedPostingList *fplist1,
-                                  FixedPostingList *fplist2)
+fixed_posting_list_doc_intersect (const FixedPostingList *fplist1,
+                                  const FixedPostingList *fplist2)
 {
     PostingPair *p1, *p2;
     PostingPair *p1_sentinel, *p2_sentinel;

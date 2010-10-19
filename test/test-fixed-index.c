@@ -72,28 +72,30 @@ test_fixed_index_get (void)
     fixed_index = fixed_index_new(inv_index);
 
     cut_assert_null(fixed_index_get(fixed_index, term1));
-    fixed_index = fixed_index_new(sample_inv_index);
-    cut_assert_not_null(fixed_index_get(fixed_index, term1));
 
-    fplist = fixed_index_get(fixed_index, term1);
+    fixed_index_free(fixed_index);
+    fixed_index = fixed_index_new(sample_inv_index);
+    cut_assert_not_null(take_fplist(fixed_index_get(fixed_index, term1)));
+
+    fplist = take_fplist(fixed_index_get(fixed_index, term1));
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 0, 0));
     cut_assert_not_null(fixed_posting_list_check(fplist, 2, 0));
 
-    fplist = fixed_index_get(fixed_index, term2);
+    fplist = take_fplist(fixed_index_get(fixed_index, term2));
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 1, 1));
 
-    fplist = fixed_index_get(fixed_index, term3);
+    fplist = take_fplist(fixed_index_get(fixed_index, term3));
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(3, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 0, 2));
     cut_assert_not_null(fixed_posting_list_check(fplist, 1, 2));
     cut_assert_not_null(fixed_posting_list_check(fplist, 2, 2));
 
-    fplist = fixed_index_get(fixed_index, term4);
+    fplist = take_fplist(fixed_index_get(fixed_index, term4));
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 2, 3));
@@ -165,30 +167,30 @@ test_fixed_index_load_dump (void)
     fixed_index_free(fixed_index);
     fixed_index = fixed_index_load("/tmp/fixed_index.dump");
 
-    fplist = fixed_index_get(fixed_index, term1);
+    fplist = take_fplist(fixed_index_get(fixed_index, term1));
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 0, 0));
     cut_assert_not_null(fixed_posting_list_check(fplist, 2, 0));
 
-    fplist = fixed_index_get(fixed_index, term2);
+    fplist = take_fplist(fixed_index_get(fixed_index, term2));
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 1, 1));
 
-    fplist = fixed_index_get(fixed_index, term3);
+    fplist = take_fplist(fixed_index_get(fixed_index, term3));
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(3, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 0, 2));
     cut_assert_not_null(fixed_posting_list_check(fplist, 1, 2));
     cut_assert_not_null(fixed_posting_list_check(fplist, 2, 2));
 
-    fplist = fixed_index_get(fixed_index, term4);
+    fplist = take_fplist(fixed_index_get(fixed_index, term4));
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(2, fixed_posting_list_size(fplist));
     cut_assert_not_null(fixed_posting_list_check(fplist, 2, 3));
     cut_assert_not_null(fixed_posting_list_check(fplist, 3, 3));
 
-    fplist = fixed_index_get(fixed_index, term5);
+    fplist = take_fplist(fixed_index_get(fixed_index, term5));
     cut_assert_null(fplist);
 }

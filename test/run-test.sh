@@ -17,8 +17,11 @@ if test x"$CUTTER_DEBUG" = x"yes"; then
     CUTTER_WRAPPER="$top_dir/libtool --mode=execute gdb --args"
     CUTTER_ARGS="--keep-opening-modules"
 elif test x"$CUTTER_CHECK_LEAK" = x"yes"; then
+    export G_SLICE=always-malloc
+    export G_DEBUG=gc-friendly
+    VALGRIND_LOG=$(mktemp)
     CUTTER_WRAPPER="$top_dir/libtool --mode=execute valgrind "
-    CUTTER_WRAPPER="$CUTTER_WRAPPER --leak-check=full --show-reachable=yes -v"
+    CUTTER_WRAPPER="$CUTTER_WRAPPER --leak-check=full --show-reachable=yes --log-file=${VALGRIND_LOG} -v"
     CUTTER_ARGS="--keep-opening-modules"
 fi
 
@@ -28,3 +31,12 @@ LC_ALL=C
 export LC_ALL
 echo $CUTTER_WRAPPER $CUTTER $CUTTER_ARGS "$@" $BASE_DIR
 $CUTTER_WRAPPER $CUTTER $CUTTER_ARGS "$@" $BASE_DIR
+
+if test "$?" -eq "0" && test x"$CUTTER_CHECK_LEAK" = x"yes"; then
+    PAGER=${PAGER}
+    if test -z "${PAGER}"; then
+	PAGER="less"
+    fi
+    $PAGER $VALGRIND_LOG
+    rm $VALGRIND_LOG
+fi

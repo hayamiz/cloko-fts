@@ -53,6 +53,18 @@ document_set_load (const gchar *path, guint limit)
     return docset;
 }
 
+DocumentSet *
+document_set_free (DocumentSet *docset)
+{
+    guint i;
+    g_free(docset->buffer);
+    for (i = 0; i < docset->size; i++) {
+        document_free(docset->docs[i]);
+    }
+    g_free(docset->docs);
+    g_free(docset);
+}
+
 guint document_set_size(DocumentSet *docset)
 {
     return docset->size;

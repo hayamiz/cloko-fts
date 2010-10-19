@@ -18,11 +18,11 @@ typedef struct _Document {
     gchar *url;
     gchar *url_top;
     guint body_pointer_offset;
-    struct _DocumentSet *docset;
+    const struct _DocumentSet *docset;
 } Document;
 
 typedef struct _DocumentSet {
-    const gchar *buffer;
+    gchar *buffer;
     guint buffer_size;
     Document **docs;
     guint size;
@@ -78,6 +78,7 @@ guint        document_time         (Document *doc);
 gchar       *document_raw_record   (Document *doc);
 
 DocumentSet *document_set_load   (const gchar *path, guint limit);
+DocumentSet *document_set_free   (DocumentSet *docset);
 guint        document_set_size   (DocumentSet *docset);
 Document    *document_set_nth    (DocumentSet *docset, guint idx);
 const gchar *document_set_buffer (DocumentSet *docset);

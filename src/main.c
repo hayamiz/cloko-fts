@@ -263,7 +263,7 @@ run(void)
     gchar *query;
     ThreadPool *thread_pool;
 
-    thread_pool = thread_pool_new(16, phrase_search_thread_func);
+    thread_pool = thread_pool_new(1, phrase_search_thread_func);
 
     if (option.network != NULL && strcmp("none", option.network) != 0){
         child_hostnames = g_strsplit(option.network, ",", 0);

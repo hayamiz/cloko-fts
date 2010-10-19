@@ -9,6 +9,10 @@ static Document *doc;
 static DocumentSet *docset;
 static FixedIndex *findex;
 static FixedPostingList *fplist;
+static ThreadPool *pool;
+
+
+static void phrase_get_thread_func (GAsyncQueue *output, gpointer task);
 
 void cut_setup (void)
 {
@@ -21,12 +25,15 @@ void cut_setup (void)
 
     doc = NULL;
     docset = NULL;
+    pool = NULL;
 }
 
 void cut_teardown (void)
 {
     if (doc)
         document_free(doc);
+    if (pool)
+        thread_pool_destroy(pool);
 }
 
 typedef struct _termentry {
@@ -182,6 +189,85 @@ test_search_docset001 (void)
         take_phrase_new("分の感想です。"),
         NULL);
     fplist = fixed_index_multiphrase_get(findex, list);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(5, fixed_posting_list_size(fplist));
+
+
+    // check multi-threaded version
+    cut_assert_null(fixed_index_make_thread_pool(0));
+    pool = fixed_index_make_thread_pool(16);
+    cut_assert_not_null(pool);
+    list = gcut_list_new(
+        take_phrase_new("今年こそはゴルフで"),
+        take_phrase_new("自己流では大変な回り道になります。「理にかなった"),
+        NULL);
+    fplist = fixed_index_multithreaded_multiphrase_get(findex, pool, list);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("自己流では大変な回り道になります。「理にかなった"),
+        take_phrase_new("今年こそはゴルフで"),
+        NULL);
+    fplist = fixed_index_multithreaded_multiphrase_get(findex, pool, list);
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->input_queue));
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->output_queue));
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("流では大変な回り道になります。「理にかなった"),
+        take_phrase_new("今年こそはゴルフで"),
+        NULL);
+    fplist = fixed_index_multithreaded_multiphrase_get(findex, pool, list);
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->input_queue));
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->output_queue));
+    cut_assert_null(fplist);
+
+    list = gcut_list_new(
+        take_phrase_new("予約しちゃいましたとも。"),
+        take_phrase_new("２３日の"),
+        take_phrase_new("タイム"),
+        take_phrase_new("６０時間" ),
+        NULL);
+    fplist = fixed_index_multithreaded_multiphrase_get(findex, pool, list);
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->input_queue));
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->output_queue));
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("アルトネリコ"),
+        take_phrase_new("フィンネルノーマルエンドクリア。"),
+        NULL);
+    fplist = fixed_index_multithreaded_multiphrase_get(findex, pool, list);
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->input_queue));
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->output_queue));
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("フィンネルノーマルエンドクリア。"),
+        take_phrase_new("アルトネリコ"),
+        NULL);
+    fplist = fixed_index_multithreaded_multiphrase_get(findex, pool, list);
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->input_queue));
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->output_queue));
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("分の感想です。"),
+        NULL);
+    fplist = fixed_index_multithreaded_multiphrase_get(findex, pool, list);
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->input_queue));
+    cut_assert_operator_int(0, >=, g_async_queue_length(pool->output_queue));
     take_fplist((FixedPostingList *) fplist);
     cut_assert_not_null(fplist);
     cut_assert_equal_uint(5, fixed_posting_list_size(fplist));

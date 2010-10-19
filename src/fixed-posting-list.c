@@ -53,7 +53,7 @@ fixed_posting_list_check_validity(const FixedPostingList *list)
 void
 fixed_posting_list_free (FixedPostingList *fplist)
 {
-    if (!fplist) return;
+    g_return_if_fail(fplist);
     g_free(fplist->pairs);
     g_free(fplist);
 }
@@ -224,17 +224,20 @@ fixed_posting_list_doc_intersect (const FixedPostingList *fplist1,
     PostingPair *pairs = NULL;
     guint doc_id = 0;
 
-    if (!fplist1){
-        if (!fplist2){
-            return NULL;
-        } else {
-            return fixed_posting_list_doc_compact(fplist2);
-        }
-    }
+    // if (!fplist1 |){
+    //     if (!fplist2){
+    //         return NULL;
+    //     } else {
+    //         return fixed_posting_list_doc_compact(fplist2);
+    //     }
+    // }
+    // 
+    // if (!fplist2){
+    //     return fixed_posting_list_doc_compact(fplist1);
+    // }
 
-    if (!fplist2){
-        return fixed_posting_list_doc_compact(fplist1);
-    }
+    if (!fplist1) return NULL;
+    if (!fplist2) return NULL;
 
     p1 = fplist1->pairs;
     p2 = fplist2->pairs;

@@ -214,15 +214,11 @@ void test_fixed_posting_list_doc_intersect (void)
     fixed_posting_list_free(list);
 
     list = fixed_posting_list_doc_intersect(fplist1, NULL);
-    cut_assert_not_null(list);
-    cut_assert_equal_uint(5, fixed_posting_list_size(list));
+    cut_assert_null(list);
 
-    fixed_posting_list_free(list);
     list = fixed_posting_list_doc_intersect(NULL, fplist2);
-    cut_assert_not_null(list);
-    cut_assert_equal_uint(6, fixed_posting_list_size(list));
+    cut_assert_null(list);
 
-    fixed_posting_list_free(list);
     fixed_posting_list_free(fplist1);
     fixed_posting_list_free(fplist2);
 }

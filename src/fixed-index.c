@@ -219,3 +219,66 @@ fixed_index_multiphrase_get (const FixedIndex *findex, GList *phrases)
 
     return base_list;
 }
+
+typedef struct _tp_arg {
+    const FixedIndex *findex;
+    Phrase *phrase;
+    FixedPostingList *list;
+} tp_arg_t;
+
+static void
+fixed_index_multithreaded_multiphrase_get_thread_func (GAsyncQueue *output, gpointer task)
+{
+    tp_arg_t *arg;
+
+    arg = task;
+    arg->list = fixed_index_phrase_get(arg->findex, arg->phrase);
+
+    g_async_queue_push(output, arg);
+}
+
+ThreadPool *
+fixed_index_make_thread_pool (guint thread_num)
+{
+    return thread_pool_new(thread_num,
+                           fixed_index_multithreaded_multiphrase_get_thread_func);
+}
+
+FixedPostingList *
+fixed_index_multithreaded_multiphrase_get (const FixedIndex *findex,
+                                           ThreadPool *pool,
+                                           GList *phrases)
+{
+    FixedPostingList *base_list, *succ_list, *tmp_list;
+    tp_arg_t *arg;
+    GList *phrase_cell;
+    guint idx;
+
+    g_return_val_if_fail(findex, NULL);
+    g_return_val_if_fail(pool, NULL);
+    g_return_val_if_fail(phrases, NULL);
+
+    for(phrase_cell = phrases; phrase_cell != NULL; phrase_cell = phrase_cell->next) {
+        arg = g_malloc(sizeof(tp_arg_t));
+        arg->findex = findex;
+        arg->phrase = phrase_cell->data;
+        arg->list = NULL;
+        thread_pool_push(pool, arg);
+    }
+
+    arg = thread_pool_pop(pool);
+    base_list = arg->list;
+    g_free(arg);
+
+    for (idx = 1; idx < g_list_length(phrases); idx++) {
+        arg = thread_pool_pop(pool);
+        succ_list = arg->list;
+        tmp_list = fixed_posting_list_doc_intersect(base_list, succ_list);
+        fixed_posting_list_free(base_list);
+        fixed_posting_list_free(succ_list);
+        g_free(arg);
+        base_list = tmp_list;
+    }
+
+    return base_list;
+}

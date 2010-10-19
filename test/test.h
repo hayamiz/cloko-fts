@@ -2,10 +2,12 @@
 #define TEST_H
 
 #include <cutter.h>
-#include <inv-index.h>
-#include <bloom-filter.h>
 #include <locale.h>
 #include <gcutter.h>
+
+#include <inv-index.h>
+#include <bloom-filter.h>
+#include <thread-pool.h>
 
 #define take_fplist(fplist)                                             \
     ((FixedPostingList *) cut_take((fplist),                            \

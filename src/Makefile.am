@@ -13,7 +13,8 @@ libinv_index_la_SOURCES =			\
 	tokenizer.c				\
 	fixed-posting-list.c			\
 	fixed-index.c				\
-	phrase.c
+	phrase.c				\
+	thread-pool.c
 
 libbloom_filter_la_SOURCES =			\
 	bloom-filter.c

@@ -4,7 +4,9 @@
 #include <string.h>
 #include <glib.h>
 #include <mecab.h>
+
 #include <bloom-filter.h>
+#include <thread-pool.h>
 
 struct _DocumentSet;
 
@@ -143,5 +145,9 @@ FixedPostingList *fixed_index_phrase_get (const FixedIndex *fixed_index, Phrase 
 const FixedIndex *fixed_index_dump       (const FixedIndex *fixed_index, const gchar *path);
 FixedIndex       *fixed_index_load       (const gchar *path);
 FixedPostingList *fixed_index_multiphrase_get (const FixedIndex *findex, GList *phrases);
+ThreadPool       *fixed_index_make_thread_pool (guint thread_num);
+FixedPostingList *fixed_index_multithreaded_multiphrase_get (const FixedIndex *findex,
+                                                             ThreadPool *pool,
+                                                             GList *list);
 
 #endif

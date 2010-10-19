@@ -1,6 +1,7 @@
 #include "inv-index.h"
 #include <stdio.h>
 
+/* limit: the number of documents loaded. 0 means unlimited. */
 DocumentSet *
 document_set_load (const gchar *path, guint limit)
 {

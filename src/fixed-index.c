@@ -90,16 +90,16 @@ fixed_index_get        (FixedIndex *findex, const gchar *term)
 FixedPostingList *
 fixed_index_phrase_get (FixedIndex *findex, Phrase *phrase)
 {
-    if (!findex || !phrase || phrase_size(phrase) == 0)
-        return NULL;
-    else if (phrase_size(phrase) == 1)
-        return fixed_index_get(findex, phrase_nth(phrase, 0));
-
     FixedPostingList *base_list;
     FixedPostingList *succ_list;
     FixedPostingList *tmp;
     guint phrase_idx;
     guint sz;
+
+    if (!findex || !phrase || phrase_size(phrase) == 0)
+        return NULL;
+    else if (phrase_size(phrase) == 1)
+        return fixed_index_get(findex, phrase_nth(phrase, 0));
 
     base_list = fixed_index_get(findex, phrase_nth(phrase, 0));
     if (base_list == NULL) {

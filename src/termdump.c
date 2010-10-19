@@ -1,5 +1,34 @@
 
 #include <inv-index.h>
+#include <stdlib.h>
+
+static struct {
+    gboolean quoted;
+} option;
+
+static GOptionEntry entries[] =
+{
+    { "quoted", 'q', 0, G_OPTION_ARG_NONE, &option.quoted, "", NULL },
+    { NULL }
+};
+
+void
+parse_args (gint *argc, gchar ***argv)
+{
+    GError *error = NULL;
+    GOptionContext *context;
+
+    option.quoted = FALSE;
+
+    context = g_option_context_new ("- termdump");
+    g_option_context_add_main_entries (context, entries, NULL);
+    if (!g_option_context_parse (context, argc, argv, &error))
+    {
+        g_printerr("option parsing failed: %s\n",
+                   error->message);
+        exit (EXIT_FAILURE);
+    }
+}
 
 gint
 main (gint argc, gchar **argv)
@@ -22,6 +51,8 @@ main (gint argc, gchar **argv)
         g_printerr("failed to get hostname.\n");
         hostname = "";
     }
+
+    parse_args(&argc, &argv);
 
     tok = NULL;
     timer = g_timer_new();
@@ -53,14 +84,24 @@ main (gint argc, gchar **argv)
                        document_set_size(docset));
         }
         while((term = tokenizer_next(tok)) != NULL){
-            printf("%s %u %d\n", term, doc_id, pos++);
+            if (option.quoted)
+                printf("\"%s\"", term);
+            else
+                printf(term);
+
+            printf(" %u %d\n", doc_id, pos++);
             g_free(term);
         }
 
         pos = 0;
         tok = tokenizer_renew(tok, document_title(doc));
         while((term = tokenizer_next(tok)) != NULL){
-            printf("%s %u %d\n", term, doc_id, G_MININT + (pos++));
+            if (option.quoted)
+                printf("\"%s\"", term);
+            else
+                printf(term);
+
+            printf(" %u %d\n", doc_id, G_MININT + (pos++));
             g_free(term);
         }
     }

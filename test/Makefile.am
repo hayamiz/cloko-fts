@@ -6,7 +6,8 @@ noinst_LTLIBRARIES =				\
 	test_fixed_posting_list.la		\
 	test_fixed_index.la			\
 	test_posting_list.la			\
-	test_bloom_filter.la
+	test_bloom_filter.la			\
+	test_search.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
@@ -19,6 +20,7 @@ test_doc_tokenizer_la_SOURCES = test-doc-tokenizer.c
 test_fixed_posting_list_la_SOURCES = test-fixed-posting-list.c
 test_fixed_index_la_SOURCES = test-fixed-index.c
 test_bloom_filter_la_SOURCES = test-bloom-filter.c
+test_search_la_SOURCES = test-search.c
 
 INCLUDES = $(CUTTER_CFLAGS) -I$(top_srcdir)/src
 LIBS =						\

@@ -201,13 +201,21 @@ gssize  frame_send_multi_results (gint sockfd, GList *frames)
 
 gssize  frame_send_query         (gint sockfd, const gchar *query)
 {
-    gssize sz;
     bzero(&local_frame, sizeof(Frame));
     g_return_val_if_fail(strlen(query) <= FRAME_CONTENT_SIZE, -1);
     local_frame.type = FRM_QUERY;
     local_frame.content_length = strlen(query);
     local_frame.body.q.length = local_frame.content_length;
     memcpy(&local_frame.body.q.buf, query, local_frame.content_length);
+
+    return frame_send(sockfd, &local_frame);
+}
+
+gssize  frame_send_bye         (gint sockfd)
+{
+    bzero(&local_frame, sizeof(Frame));
+    local_frame.type = FRM_BYE;
+    local_frame.content_length = 0;
 
     return frame_send(sockfd, &local_frame);
 }
@@ -242,6 +250,9 @@ GList  *frame_recv_result        (gint sockfd)
 
     frame = frame_new();
     sz = frame_recv(sockfd, frame);
+    if (sz == 0) {
+        return NULL;
+    }
     g_return_val_if_fail(sz == FRAME_SIZE, NULL);
 
     g_return_val_if_fail(frame->type == FRM_RESULT ||
@@ -250,7 +261,8 @@ GList  *frame_recv_result        (gint sockfd)
     switch(frame->type){
     case FRM_RESULT:
         if (frame->extra_field == 0){
-            return NULL;
+            g_return_val_if_fail(frame->content_length == 0, NULL);
+            g_return_val_if_fail(frame->body.q.length == 0, NULL);
         }
         return g_list_append(NULL, frame);
         break;

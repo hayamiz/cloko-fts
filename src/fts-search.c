@@ -1,4 +1,6 @@
 
+#include <inv-index.h>
+
 #define RECV_BLOCK_SIZE 8192
 
 #include <glib.h>
@@ -110,39 +112,24 @@ recv_all (gint sockfd, gchar *res, ssize_t size)
 void *
 receiver_thread (void *ptr)
 {
-    gint sockfd = (gint)(gint64) ptr;
-    GString *output = g_string_new("");
-    size_t sz;
-    gchar *buf[4096];
-
-    while((sz = read(sockfd, buf, 4096)) > 0){
-        if (sz == -1){
-            g_printerr("read error. errno=%d\n", errno);
-            exit(EXIT_FAILURE);
-        }
-        g_string_append_len(output, (const gchar *) buf, sz);
-    }
-
-    gint rnum;
+    gint sockfd;
+    GList *frames;
+    GList *frame_cell;
+    Frame *frame;
     guint qid;
-    guint bytes;
-    gchar *endptr;
-    gchar *tmp;
-    gchar *bod;
-    // printf(output->str);
-    endptr = output->str;
+
     qid = 1;
-    while((tmp = strstr(endptr, "RESULT")) != NULL){
-        rnum = strtol(tmp + 7, &endptr, 10);
-        bytes = strtol(endptr, &endptr, 10);
-        if (endptr[0] != '\n'){
-            g_printerr("error\n");
-            exit(EXIT_FAILURE);
+    sockfd = (gint)(gint64) ptr;
+
+    while((frames = frame_recv_result(sockfd)) != NULL) {
+        frame = frames->data;
+        printf("## %d %d\n", qid, frame->extra_field);
+        for (frame_cell = frames; frame_cell != NULL; frame_cell = frame_cell->next){
+            frame = frame_cell->data;
+            fwrite(&frame->body.lrr.buf, sizeof(gchar),
+                   frame->content_length, stdout);
         }
-        printf("## %d %d\n", qid, rnum);
-        fwrite(endptr + 1, sizeof(gchar), bytes, stdout);
         qid ++;
-        endptr = endptr + 1 + bytes;
     }
 }
 
@@ -191,16 +178,12 @@ process_query(const gchar *host,
         exit(EXIT_FAILURE);
     }
 
-    GString *query_str = g_string_new("");
-
     guint idx;
     for(idx = 0; idx < qn; idx++){
-        g_string_append_printf(query_str,"QUERY %s\n", qs[idx].str);
+        frame_send_query(sockfd, qs[idx].str);
     }
-    g_string_append(query_str, "BYE\n");
-    send_all(sockfd, query_str->str, query_str->len);
+    frame_send_bye(sockfd);
 
-    g_string_free(query_str, TRUE);
     pthread_join(receiver, NULL);
 }
 

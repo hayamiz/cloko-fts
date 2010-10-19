@@ -227,6 +227,7 @@ GList   *frame_make_result_from_fixed_posting_list (DocumentSet *docset,
 gssize  frame_send               (gint sockfd, Frame *frame);
 gssize  frame_send_multi_results (gint sockfd, GList *frames);
 gssize  frame_send_query         (gint sockfd, const gchar *query);
+gssize  frame_send_bye           (gint sockfd);
 gssize  frame_recv               (gint sockfd, Frame *frame);
 GList  *frame_recv_result        (gint sockfd);
 guint32 frame_type               (Frame *frame);

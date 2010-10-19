@@ -39,6 +39,7 @@ fts_node_LDADD =				\
 	$(GLIB_LIBS)
 
 fts_search_LDADD =				\
+	libinv_index.la				\
 	$(GLIB_LIBS)
 
 termdump_LDADD =				\

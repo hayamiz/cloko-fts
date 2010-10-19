@@ -1,5 +1,5 @@
-# lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
-noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
+lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
+# noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 

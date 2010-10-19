@@ -30,7 +30,7 @@ document_set_load (const gchar *path, guint limit)
     endptr = strbuffer->str;
     while(fgets(buf, 4096 - 1, fp) != NULL){
         g_string_append(strbuffer, buf);
-        if (strstr(strbuffer->str + endptr_idx, "EOD\n") == NULL){
+        if (strstr(strbuffer->str + endptr_idx, "EOD") == NULL){
             continue;
         }
 
@@ -119,6 +119,7 @@ document_set_make_index (DocumentSet *docset)
             g_free(term);
         }
     }
+    tokenizer_free(tok);
 
     return inv_index;
 }

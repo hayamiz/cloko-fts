@@ -43,7 +43,7 @@ document_parse (DocumentSet *docset, const gchar *text, guint offset, gint doc_i
     ptr = next_ptr + 1;
 
     doc->body_pointer_offset = ptr - text;
-    if ((next_ptr = strstr(ptr, "\nEOD\n")) == NULL){
+    if ((next_ptr = strstr(ptr, "\nEOD")) == NULL){
         goto failure;
     }
     doc->size = next_ptr - (text + offset);

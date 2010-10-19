@@ -5,10 +5,14 @@
 #include <inv-index.h>
 #include <bloom-filter.h>
 #include <locale.h>
+#include <gcutter.h>
 
 #define take_fplist(fplist)                                             \
     ((FixedPostingList *) cut_take((fplist),                            \
                                    (CutDestroyFunction) fixed_posting_list_free))
+
+#define take_phrase_new(str) \
+    (Phrase *) cut_take(phrase_from_string(str), (CutDestroyFunction) phrase_free)
 
 #define take_phrase(phrase) \
     (Phrase *) cut_take((phrase), (CutDestroyFunction) phrase_free)

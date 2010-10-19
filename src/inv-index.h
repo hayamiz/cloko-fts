@@ -142,5 +142,6 @@ FixedPostingList *fixed_index_get        (const FixedIndex *fixed_index, const g
 FixedPostingList *fixed_index_phrase_get (const FixedIndex *fixed_index, Phrase *phrase);
 const FixedIndex *fixed_index_dump       (const FixedIndex *fixed_index, const gchar *path);
 FixedIndex       *fixed_index_load       (const gchar *path);
+FixedPostingList *fixed_index_multiphrase_get (const FixedIndex *findex, GList *phrases);
 
 #endif

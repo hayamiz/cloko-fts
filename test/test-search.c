@@ -37,80 +37,13 @@ typedef struct _termentry {
 void
 test_search_docset001 (void)
 {
+    GList *list;
     const FixedPostingList *fplist;
     termentry_t *entry;
-    // ./src/termdump -q < test/fixtures/docset001.txt|awk '{print $1}'|sort|uniq -c|sort -rn|head -20|awk '{print "{"$1","$2"},"}'
+    // ./src/termdump -u -c 500 -C < test/fixtures/docset001.txt|sort|uniq > test/test-search-terms.inc
     termentry_t termentries[] =
     {
-        {83,"の"},
-        {64,"　"},
-        {61,"。"},
-        {49,"に"},
-        {49,"、"},
-        {41,"を"},
-        {40,"て"},
-        {36,"０"},
-        {34,"た"},
-        {33,"は"},
-        {32,"！"},
-        {25,"で"},
-        {25,"し"},
-        {24,"です"},
-        {24,"１"},
-        {24,"」"},
-        {24,"「"},
-        {23,"２"},
-        {23,"．"},
-        {22,"が"},
-        {1,"»"},
-        {1,"¹´"},
-        {1,"!　"},
-        {1,"(　"},
-        {1,"-"},
-        {1,"2010"},
-        {1,"30"},
-        {1,"60"},
-        {1,"Bible"},
-        {1,"CM"},
-        {1,"DELUX"},
-        {1,"GyaO"},
-        {1,"HTML"},
-        {1,"Silent"},
-        {1,"["},
-        {1,"]["},
-        {1,"]　"},
-        {1,"memo"},
-        {1,"perl"},
-        {1,"　)"},
-        {1,"｜"},
-        {1,"『"},
-        {1,"』"},
-        {1,"＊"},
-        {1,"◆"},
-        {1,"∀"},
-        {1,"５月"},
-        {1,"６月"},
-        {1,"７"},
-        {3,"新年"},
-        {3,"新"},
-        {3,"書き"},
-        {3,"初"},
-        {3,"修正"},
-        {3,"私"},
-        {3,"魂"},
-        {3,"軌跡"},
-        {3,"音楽"},
-        {3,"ピンチ"},
-        {3,"ビデオ"},
-        {3,"パチスロ"},
-        {3,"ゴルフ"},
-        {3,"クリップ"},
-        {3,"エヴァンゲリオン"},
-        {3,"もの"},
-        {3,"はま"},
-        {3,"ので"},
-        {3,"など"},
-        {3,"として"},
+        #include "test-search-terms.inc"
 
         {0, NULL}};
 
@@ -118,18 +51,25 @@ test_search_docset001 (void)
     findex = document_set_make_fixed_index(docset, 0);
 
     cut_assert_not_null(findex);
-    cut_assert_equal_uint(675, fixed_index_numterms(findex)); // use termdump to count it
+    cut_assert_equal_uint(1609, fixed_index_numterms(findex)); // use termdump to count it
 
     for(entry = termentries; entry->term != NULL; entry++){
         fplist = take_fplist(fixed_index_get(findex, entry->term));
-        cut_assert_not_null(fplist,
-                            cut_message("search failed on \"%s\"\n", entry->term));
-        cut_assert_equal_uint(entry->num, fixed_posting_list_size(fplist));
+        if (!fplist) {
+            fprintf(stderr, "\nterm search failed: \"%s\"\n", entry->term);
+            cut_assert_not_null(fplist);
+        }
+        if (entry->num != fixed_posting_list_size(fplist)){
+            fprintf(stderr, "\nterm search failed: \"%s\"\n", entry->term);
+            cut_assert_equal_uint(entry->num, fixed_posting_list_size(fplist));
+        }
     }
 
     const gchar *phrase_strs[] =
         {"今年こそはゴルフを極めようと",
          "今年こそはゴルフで",
+         // "流では大変な回り道になります。「理にかなった",
+         "自己流では大変な回り道になります。「理にかなった",
          // "時に限ってやって来るんですねもう久しぶりに同級",
          "に限ってやって来るんですねもう久しぶりに",
          "日程前から",
@@ -149,6 +89,16 @@ test_search_docset001 (void)
          "ｎａｍｅ　’＊．ｈｔｍｌ’　｜　ｘａｒｇｓ　ｐｅｒｌ　−ｐ　−ｉ　−",
          "ｆｉｎｄ　．−",
          "４年ほど前に作った，静的な",
+         // "気温５度って…明日も寒いんやろ？寒いと意味もなくイライラするからあかん",
+         "気温５度って…明日も寒いんやろ？寒いと意味もなくイライラするからあか",
+         "手の",
+         "殺人的や最高",
+         "アルトネリコ",
+         "フィンネルノーマルエンドクリア。",
+         "総勢６名で、肉を平らげます（笑）万両のお",
+         "万両」へ新年",
+         "万両へ行く",
+         "分の感想です。",
 
          NULL};
     const gchar *phrase_str;
@@ -171,4 +121,70 @@ test_search_docset001 (void)
 
         // fprintf(stderr, "phrase search ok: [%d] %s\n", idx, phrase_str);
     }
+
+
+
+    list = gcut_list_new(
+        take_phrase_new("今年こそはゴルフで"),
+        take_phrase_new("自己流では大変な回り道になります。「理にかなった"),
+        NULL);
+    fplist = fixed_index_multiphrase_get(findex, list);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("自己流では大変な回り道になります。「理にかなった"),
+        take_phrase_new("今年こそはゴルフで"),
+        NULL);
+    fplist = fixed_index_multiphrase_get(findex, list);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("流では大変な回り道になります。「理にかなった"),
+        take_phrase_new("今年こそはゴルフで"),
+        NULL);
+    fplist = fixed_index_multiphrase_get(findex, list);
+    cut_assert_null(fplist);
+
+    list = gcut_list_new(
+        take_phrase_new("予約しちゃいましたとも。"),
+        take_phrase_new("２３日の"),
+        take_phrase_new("タイム"),
+        take_phrase_new("６０時間" ),
+        NULL);
+    fplist = fixed_index_multiphrase_get(findex, list);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("アルトネリコ"),
+        take_phrase_new("フィンネルノーマルエンドクリア。"),
+        NULL);
+    fplist = fixed_index_multiphrase_get(findex, list);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("フィンネルノーマルエンドクリア。"),
+        take_phrase_new("アルトネリコ"),
+        NULL);
+    fplist = fixed_index_multiphrase_get(findex, list);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
+    list = gcut_list_new(
+        take_phrase_new("分の感想です。"),
+        NULL);
+    fplist = fixed_index_multiphrase_get(findex, list);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(5, fixed_posting_list_size(fplist));
+
+    fplist = NULL;
 }

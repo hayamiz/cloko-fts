@@ -171,6 +171,10 @@ fixed_posting_list_select_successor (const FixedPostingList *base_list,
         }
     }
 
+    if (size == 0){
+        g_free(pairs);
+        return NULL;
+    }
     fplist = g_malloc(sizeof(FixedPostingList));
     fplist->size = size;
     fplist->pairs = pairs;

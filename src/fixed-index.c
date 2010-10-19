@@ -194,3 +194,28 @@ fixed_index_load       (const gchar *path)
     fclose(fp);
     return findex;
 }
+
+FixedPostingList *
+fixed_index_multiphrase_get (const FixedIndex *findex, GList *phrases)
+{
+    FixedPostingList *base_list, *succ_list, *tmp_list;
+    GList *phrase;
+
+    if (g_list_length(phrases) == 0){
+        return NULL;
+    }
+
+    phrase = phrases;
+    base_list = fixed_index_phrase_get(findex, phrase->data);
+    phrase = phrase->next;
+
+    for(; base_list != NULL && phrase != NULL; phrase = phrase->next) {
+        succ_list = fixed_index_phrase_get(findex, phrase->data);
+        tmp_list = fixed_posting_list_doc_intersect(base_list, succ_list);
+        fixed_posting_list_free(base_list);
+        fixed_posting_list_free(succ_list);
+        base_list = tmp_list;
+    }
+
+    return base_list;
+}

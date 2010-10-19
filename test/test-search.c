@@ -115,7 +115,7 @@ test_search_docset001 (void)
         {0, NULL}};
 
     docset = document_set_load(docset001_path, 0);
-    findex = document_set_make_fixed_index(docset);
+    findex = document_set_make_fixed_index(docset, 0);
 
     cut_assert_not_null(findex);
     cut_assert_equal_uint(675, fixed_index_numterms(findex)); // use termdump to count it
@@ -169,6 +169,6 @@ test_search_docset001 (void)
             cut_test_fail("phrase search failed.");
         }
 
-        fprintf(stderr, "phrase search ok: [%d] %s\n", idx, phrase_str);
+        // fprintf(stderr, "phrase search ok: [%d] %s\n", idx, phrase_str);
     }
 }

@@ -82,7 +82,8 @@ DocumentSet *document_set_free   (DocumentSet *docset);
 guint        document_set_size   (DocumentSet *docset);
 Document    *document_set_nth    (DocumentSet *docset, guint idx);
 const gchar *document_set_buffer (DocumentSet *docset);
-FixedIndex  *document_set_make_fixed_index (DocumentSet *docset);
+FixedIndex  *document_set_make_fixed_index (DocumentSet *docset, guint limit);
+void         document_set_indexing_show_progress (gboolean sw);
 
 Tokenizer   *tokenizer_new  (const gchar *str);
 Tokenizer   *tokenizer_new2 (const gchar *str, guint len);

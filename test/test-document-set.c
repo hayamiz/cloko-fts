@@ -137,7 +137,7 @@ void
 test_document_set_make_fixed_index (void)
 {
     docset = document_set_load(docset001_path, 0);
-    findex = document_set_make_fixed_index(docset);
+    findex = document_set_make_fixed_index(docset, 0);
 
     cut_assert_not_null(findex);
 }

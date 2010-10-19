@@ -1,6 +1,9 @@
 #include "inv-index.h"
 #include <stdio.h>
 
+#define PROGRESS_INTERVAL 5000
+static gboolean index_show_progress = FALSE;
+
 /* limit: the number of documents loaded. 0 means unlimited. */
 DocumentSet *
 document_set_load (const gchar *path, guint limit)
@@ -83,7 +86,7 @@ document_set_buffer (DocumentSet *docset)
 }
 
 InvIndex *
-document_set_make_index (DocumentSet *docset)
+document_set_make_index (DocumentSet *docset, guint limit)
 {
     InvIndex *inv_index;
     Document *doc;
@@ -99,7 +102,7 @@ document_set_make_index (DocumentSet *docset)
     tok = NULL;
     pos = 0;
 
-    for (i = 0; i < document_set_size(docset); i++) {
+    for (i = 0; i < document_set_size(docset) && (limit == 0 || i < limit); i++) {
         doc = document_set_nth(docset, i);
         doc_id = document_id(doc);
         tok = tokenizer_renew2(tok,
@@ -118,6 +121,11 @@ document_set_make_index (DocumentSet *docset)
             inv_index_add_term(inv_index, term, doc_id, G_MININT + (pos++));
             g_free(term);
         }
+
+        if (index_show_progress && doc_id > 0 && doc_id % PROGRESS_INTERVAL == 0){
+            g_print("indexed %d/%d documents: %d terms\n",
+                    i, document_set_size(docset), inv_index_numterms(inv_index));
+        }
     }
     tokenizer_free(tok);
 
@@ -125,15 +133,21 @@ document_set_make_index (DocumentSet *docset)
 }
 
 FixedIndex *
-document_set_make_fixed_index (DocumentSet *docset)
+document_set_make_fixed_index (DocumentSet *docset, guint limit)
 {
     InvIndex *inv_index;
     FixedIndex *findex;
 
-    inv_index = document_set_make_index(docset);
+    inv_index = document_set_make_index(docset, limit);
     findex = fixed_index_new(inv_index);
 
     inv_index_free(inv_index);
 
     return findex;
+}
+
+void
+document_set_indexing_show_progress (gboolean sw)
+{
+    index_show_progress = sw;
 }

@@ -1,7 +1,6 @@
 
 #define RECV_BLOCK_SIZE 8192
 
-#include <inv-index.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <gio/gio.h>
@@ -14,10 +13,14 @@
 #include <errno.h>
 #include <netdb.h>
 
+#include <inv-index.h>
+#include <thread-pool.h>
+
 typedef struct process_env process_env_t;
 
 static void parse_args (gint *args, gchar ***argv);
 static void run (void);
+static void standalone (void);
 static void *child_downstreamer (void *data);
 static void *child_upstreamer (void *data);
 static gchar *get_hostname (void);
@@ -54,18 +57,8 @@ static struct {
     gint tcp_nodelay;
     gint tcp_cork;
     gboolean verbose;
+    gboolean standalone;
 } option;
-
-typedef void (*ThreadPoolFun)(GAsyncQueue *output, gpointer task);
-
-typedef struct _ThreadPool {
-    guint size;
-    pthread_t *threads;
-    GAsyncQueue *input_queue;
-    GAsyncQueue *output_queue;
-    gboolean exit;
-    ThreadPoolFun worker;
-} ThreadPool;
 
 struct process_env {
     gint sockfd;
@@ -86,88 +79,13 @@ typedef struct query_result {
     gchar *retstr;
 } query_result_t;
 
-void *
-thread_pool_func (gpointer data)
-{
-    ThreadPool *tp;
-    gpointer task;
-
-    tp = (ThreadPool *) data;
-    g_async_queue_ref(tp->input_queue);
-    g_async_queue_ref(tp->output_queue);
-
-    for(;;){
-        task = g_async_queue_pop(tp->input_queue);
-        if (tp->exit) break;
-        tp->worker(tp->output_queue, task);
-    }
-
-    g_async_queue_unref(tp->input_queue);
-    g_async_queue_unref(tp->output_queue);
-}
-
-void
-thread_pool_push (ThreadPool *tp, gpointer task)
-{
-    g_async_queue_push(tp->input_queue, task);
-}
-
-gpointer
-thread_pool_pop (ThreadPool *tp)
-{
-    return g_async_queue_pop(tp->input_queue);
-}
-
-void
-thread_pool_destroy (ThreadPool *tp)
-{
-    guint i;
-    tp->exit = TRUE;
-    for (i = 0; i < tp->size; i++){
-        // push dummy data
-        g_async_queue_push(tp->input_queue, (gpointer) 0x1);
-    }
-    for (i = 0; i < tp->size; i++){
-         pthread_join(tp->threads[i], NULL);
-    }
-    g_async_queue_unref(tp->input_queue);
-    g_async_queue_unref(tp->output_queue);
-    g_free(tp->threads);
-    g_free(tp);
-}
-
-ThreadPool *
-thread_pool_new (guint size, ThreadPoolFun worker)
-{
-    ThreadPool *tp;
-    guint i;
-
-    if (size == 0)
-        return NULL;
-
-    tp = g_malloc(sizeof(ThreadPool));
-    tp->threads = g_malloc(sizeof(pthread_t) * size);
-    tp->input_queue = g_async_queue_new();
-    tp->output_queue = g_async_queue_new();
-    tp->exit = FALSE;
-    tp->worker = worker;
-    tp->size = size;
-
-    for (i = 0; i < size; i++) {
-        if (pthread_create(&tp->threads[i], NULL, thread_pool_func, tp) != 0){
-            g_printerr("Failed to create thread");
-        }
-    }
-
-    return tp;
-}
-
 static GOptionEntry entries[] =
 {
     { "datafile", 'd', 0, G_OPTION_ARG_STRING, &option.datafile, "", "FILE" },
     { "save-index", 'o', 0, G_OPTION_ARG_STRING, &option.save_index, "", "FILE" },
     { "load-index", 'i', 0, G_OPTION_ARG_STRING, &option.load_index, "", "FILE" },
     { "daemon", 'D', 0, G_OPTION_ARG_NONE, &option.daemon, "", NULL },
+    { "standalone", 's', 0, G_OPTION_ARG_NONE, &option.standalone, "", NULL },
     { "relay", 'r', 0, G_OPTION_ARG_NONE, &option.relay, "", NULL },
     { "network", 'n', 0, G_OPTION_ARG_STRING, &option.network, "host numbers (ex. 000,001) or 'none'", "HOSTS" },
     { "timeout", 't', 0, G_OPTION_ARG_INT, &option.timeout, "Client connect timeout", "SECONDS" },
@@ -202,7 +120,7 @@ parse_args (gint *argc, gchar ***argv)
     option.network = NULL;
     option.port    = "30001";
     option.daemon  = FALSE;
-    option.doc_limit = -1;
+    option.doc_limit = 0;
     option.timeout = 100;
     option.tcp_nodelay = 0;
     option.tcp_cork = 0;
@@ -231,6 +149,12 @@ parse_args (gint *argc, gchar ***argv)
         }
     }
 
+    if (option.standalone && option.daemon){
+        g_printerr("[%s]: cannot specify both --standalone and --daemon\n",
+                   hostname);
+        goto failure;
+    }
+
     if (option.load_index &&
         access(option.load_index, F_OK) != 0){
         g_printerr("[%s]: No such file or directory: %s\n", hostname, option.load_index);
@@ -239,6 +163,12 @@ parse_args (gint *argc, gchar ***argv)
 
     if (option.save_index != NULL && option.load_index != NULL){
         g_printerr("[%s]: cannot specify both --save-index and --load-index\n",
+                   hostname);
+        goto failure;
+    }
+
+    if (option.doc_limit > 0 && option.load_index != NULL){
+        g_printerr("[%s]: cannot specify both --doc-limit-index and --load-index\n",
                    hostname);
         goto failure;
     }
@@ -263,7 +193,7 @@ run(void)
     gchar *query;
     ThreadPool *thread_pool;
 
-    thread_pool = thread_pool_new(1, phrase_search_thread_func);
+    thread_pool = fixed_index_make_thread_pool(16);
 
     if (option.network != NULL && strcmp("none", option.network) != 0){
         child_hostnames = g_strsplit(option.network, ",", 0);
@@ -413,63 +343,38 @@ process_query (const gchar *query, process_env_t *env)
     query_result_t *tmp;
     FixedPostingList *base_list;
     FixedPostingList *tmp_list;
+    FixedPostingList *fplist;
     GString *output_header;
     GString *output_body;
     guint i;
     guint sz;
     PostingPair *pair;
     gdouble time;
-    Tokenizer *tok; 
-    guint num_phrases;
-    phrase_search_arg_t *arg;
+    GList *phrases;
+    gchar *phrase_str;
 
     g_timer_start(env->timer);
 
     output_header = g_string_new("");
     output_body = g_string_new("");
     ret.size = 0;
-    num_phrases = 0;
+    phrases = NULL;
 
     if (option.relay == FALSE) {
         regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
         base_list = NULL;
         tmp_list = NULL;
-        tok = NULL;
 
         g_regex_match (regex, query, 0, &match_info);
         while (g_match_info_matches (match_info))
         {
-            gchar *phrase_str = g_match_info_fetch (match_info, 1);
-            num_phrases++;
-
-            arg = g_malloc(sizeof(phrase_search_arg_t));
-            arg->phrase_str = phrase_str;
-            thread_pool_push(env->thread_pool, arg);
-
+            phrase_str = g_match_info_fetch (match_info, 1);
+            phrases = g_list_prepend(phrases, phrase_from_string(phrase_str));
             g_match_info_next (match_info, NULL);
         }
 
-        for(;num_phrases > 0 && base_list != NULL;num_phrases--){
-            arg = thread_pool_pop(env->thread_pool);
-            tmp_list = fixed_posting_list_doc_intersect(base_list,
-                                                         arg->ret);
-            // fixed_posting_list_free(base_list);
-            // fixed_posting_list_free(arg->ret);
-            g_free(arg);
-            base_list = tmp_list;
-        }
+        fplist = fixed_index_multithreaded_multiphrase_get(findex, env->thread_pool, phrases);
 
-        if (base_list != NULL){
-            pair = base_list->pairs;
-            ret.size = sz = fixed_posting_list_size(base_list);
-            for(i = 0;i < sz;i++){
-                gchar *record = document_raw_record(document_set_nth(docset, pair->doc_id));
-                g_string_append(output_body, record);
-                g_free(record);
-                pair++;
-            }
-            fixed_posting_list_free(base_list);
-        }
         g_match_info_free(match_info);
         MSG("query processing time: %lf [msec]\n",
             (time = g_timer_elapsed(env->timer, NULL) * 1000));
@@ -514,24 +419,17 @@ void
 phrase_search_thread_func (GAsyncQueue *queue, gpointer data)
 {
     phrase_search_arg_t *arg = (phrase_search_arg_t *) data;
-    Tokenizer *tok;
     FixedPostingList *list;
     Phrase *phrase;
     gchar *term;
 
-    phrase = phrase_new();
-    tok = tokenizer_new(arg->phrase_str);
-    while((term = tokenizer_next(tok)) != NULL){
-        phrase_append(phrase, term);
-        g_free(term);
-    }
+    phrase = phrase_from_string(arg->phrase_str);
     list = fixed_index_phrase_get(findex, phrase);
 
     // result
     arg->ret = list;
     g_async_queue_push(queue, arg);
     phrase_free(phrase);
-    tokenizer_free(tok);
 }
 
 static inline ssize_t
@@ -749,6 +647,32 @@ child_upstreamer (void *data)
 }
 
 
+void
+standalone (void)
+{
+    gchar buf[4096 + 1];
+    size_t sz;
+    gchar *query;
+    gchar *ptr;
+    process_env_t env;
+
+    while(fgets(buf, 4096, stdin) != NULL){
+        sz = strlen(buf);
+        g_return_if_fail(sz > 0 && buf[sz - 1] == '\n');
+        g_return_if_fail(query = index(buf, '"'));
+        for (ptr = buf + sz; TRUE; ptr--){
+            if (*(ptr - 1) == '"') {
+                query = g_strndup(query, ptr - query);
+                break;
+            }
+            g_return_if_fail(ptr - 1 != buf);
+        }
+
+        // search query
+    }
+}
+
+
 gint
 main (gint argc, gchar **argv)
 {
@@ -794,57 +718,17 @@ main (gint argc, gchar **argv)
             fixed_index_check_validity(findex);
         } else {
             inv_index = inv_index_new();
-            guint idx;
-            guint sz = document_set_size(docset);
 
-            if (option.doc_limit > 0){
-                sz = option.doc_limit;
-            }
-
-            Tokenizer *tok = NULL;
             g_timer_start(timer);
-            for(idx = 0;idx < sz;idx++){
-                Document *doc = document_set_nth(docset, idx);
-                tok = tokenizer_renew2(tok,
-                                       document_body_pointer(doc),
-                                       document_body_size(doc));
-                gchar *term;
-                guint pos = 0;
-                gint doc_id = document_id(doc);
-                if (doc_id % 5000 == 0){
-                    g_printerr("%s: %d/%d documents indexed: %d terms.\n",
-                               hostname,
-                               doc_id,
-                               document_set_size(docset),
-                               inv_index_numterms(inv_index));
-                }
-                while((term = tokenizer_next(tok)) != NULL){
-                    inv_index_add_term(inv_index, term, doc_id, pos++);
-                    g_free(term);
-                }
-                pos = 0;
-                tok = tokenizer_renew(tok, document_title(doc));
-                while((term = tokenizer_next(tok)) != NULL){
-                    inv_index_add_term(inv_index, term, doc_id, G_MININT + (pos++));
-                }
-            }
+            document_set_indexing_show_progress(TRUE);
+            findex = document_set_make_fixed_index(docset, option.doc_limit);
             g_timer_stop(timer);
             g_print("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",
                     hostname,
                     g_timer_elapsed(timer, NULL),
                     hostname,
-                    inv_index_numterms(inv_index));
+                    fixed_index_numterms(findex));
 
-            g_print("%s: packing index\n", hostname);
-            g_timer_start(timer);
-            findex = fixed_index_new(inv_index);
-            g_timer_stop(timer);
-            g_print("%s: packed: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
-
-            if (inv_index_numterms(inv_index) != fixed_index_numterms(findex)){
-                g_print("%s: invalid packed index\n", hostname);
-                exit(EXIT_FAILURE);
-            }
             fixed_index_check_validity(findex);
 
             if (option.save_index){
@@ -872,6 +756,8 @@ main (gint argc, gchar **argv)
 
     if (option.daemon){
         run();
+    } else if (option.standalone) {
+        standalone();
     }
 
     return 0;

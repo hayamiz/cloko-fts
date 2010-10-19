@@ -106,10 +106,10 @@ main (gint argc, gchar **argv)
         }
     }
     g_timer_stop(timer);
-    g_print("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",
-            hostname,
-            g_timer_elapsed(timer, NULL),
-            hostname);
+    g_printerr("%s: indexed: %lf [sec]\n%s: # of terms: %d\n",
+               hostname,
+               g_timer_elapsed(timer, NULL),
+               hostname);
 
     tokenizer_free(tok);
     document_set_free(docset);

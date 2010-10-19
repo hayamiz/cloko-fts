@@ -453,8 +453,8 @@ process_query (const gchar *query, process_env_t *env)
             arg = thread_pool_pop(env->thread_pool);
             tmp_list = fixed_posting_list_doc_intersect(base_list,
                                                          arg->ret);
-            fixed_posting_list_free(base_list);
-            fixed_posting_list_free(arg->ret);
+            // fixed_posting_list_free(base_list);
+            // fixed_posting_list_free(arg->ret);
             g_free(arg);
             base_list = tmp_list;
         }
@@ -808,7 +808,7 @@ main (gint argc, gchar **argv)
                 tok = tokenizer_renew2(tok,
                                        document_body_pointer(doc),
                                        document_body_size(doc));
-                const gchar *term;
+                gchar *term;
                 guint pos = 0;
                 gint doc_id = document_id(doc);
                 if (doc_id % 5000 == 0){
@@ -820,6 +820,7 @@ main (gint argc, gchar **argv)
                 }
                 while((term = tokenizer_next(tok)) != NULL){
                     inv_index_add_term(inv_index, term, doc_id, pos++);
+                    g_free(term);
                 }
                 pos = 0;
                 tok = tokenizer_renew(tok, document_title(doc));

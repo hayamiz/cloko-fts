@@ -22,7 +22,7 @@ static void *child_downstreamer (void *data);
 static void *child_upstreamer (void *data);
 static gchar *get_hostname (void);
 static void process_query(const gchar *query, process_env_t *env);
-void   phrase_search_thread_func (gpointer data, gpointer user_data);
+void   phrase_search_thread_func (GAsyncQueue *queue, gpointer user_data);
 static inline ssize_t send_all(gint sockfd, const gchar *msg, ssize_t size);
 static inline ssize_t recv_all(gint sockfd, gchar *res, ssize_t size);
 
@@ -56,12 +56,23 @@ static struct {
     gboolean verbose;
 } option;
 
+typedef void (*ThreadPoolFun)(GAsyncQueue *output, gpointer task);
+
+typedef struct _ThreadPool {
+    guint size;
+    pthread_t *threads;
+    GAsyncQueue *input_queue;
+    GAsyncQueue *output_queue;
+    gboolean exit;
+    ThreadPoolFun worker;
+} ThreadPool;
+
 struct process_env {
     gint sockfd;
     GAsyncQueue *queue;
     guint child_num;
     GTimer *timer;
-    GThreadPool *thread_pool;
+    ThreadPool *thread_pool;
 };
 
 typedef struct phrase_search {
@@ -74,6 +85,82 @@ typedef struct query_result {
     guint size;
     gchar *retstr;
 } query_result_t;
+
+void *
+thread_pool_func (gpointer data)
+{
+    ThreadPool *tp;
+    gpointer task;
+
+    tp = (ThreadPool *) data;
+    g_async_queue_ref(tp->input_queue);
+    g_async_queue_ref(tp->output_queue);
+
+    for(;;){
+        task = g_async_queue_pop(tp->input_queue);
+        if (tp->exit) break;
+        tp->worker(tp->output_queue, task);
+    }
+
+    g_async_queue_unref(tp->input_queue);
+    g_async_queue_unref(tp->output_queue);
+}
+
+void
+thread_pool_push (ThreadPool *tp, gpointer task)
+{
+    g_async_queue_push(tp->input_queue, task);
+}
+
+gpointer
+thread_pool_pop (ThreadPool *tp)
+{
+    return g_async_queue_pop(tp->input_queue);
+}
+
+void
+thread_pool_destroy (ThreadPool *tp)
+{
+    guint i;
+    tp->exit = TRUE;
+    for (i = 0; i < tp->size; i++){
+        // push dummy data
+        g_async_queue_push(tp->input_queue, (gpointer) 0x1);
+    }
+    for (i = 0; i < tp->size; i++){
+         pthread_join(tp->threads[i], NULL);
+    }
+    g_async_queue_unref(tp->input_queue);
+    g_async_queue_unref(tp->output_queue);
+    g_free(tp->threads);
+    g_free(tp);
+}
+
+ThreadPool *
+thread_pool_new (guint size, ThreadPoolFun worker)
+{
+    ThreadPool *tp;
+    guint i;
+
+    if (size == 0)
+        return NULL;
+
+    tp = g_malloc(sizeof(ThreadPool));
+    tp->threads = g_malloc(sizeof(pthread_t) * size);
+    tp->input_queue = g_async_queue_new();
+    tp->output_queue = g_async_queue_new();
+    tp->exit = FALSE;
+    tp->worker = worker;
+    tp->size = size;
+
+    for (i = 0; i < size; i++) {
+        if (pthread_create(&tp->threads[i], NULL, thread_pool_func, tp) != 0){
+            g_printerr("Failed to create thread");
+        }
+    }
+
+    return tp;
+}
 
 static GOptionEntry entries[] =
 {
@@ -174,13 +261,9 @@ run(void)
     gint i;
     GAsyncQueue *queue = g_async_queue_new();
     gchar *query;
-    GThreadPool *thread_pool;
+    ThreadPool *thread_pool;
 
-    thread_pool = g_thread_pool_new(phrase_search_thread_func,
-                                    NULL,
-                                    16,
-                                    TRUE,
-                                    NULL);
+    thread_pool = thread_pool_new(16, phrase_search_thread_func);
 
     if (option.network != NULL && strcmp("none", option.network) != 0){
         child_hostnames = g_strsplit(option.network, ",", 0);
@@ -316,7 +399,7 @@ quit:
     for(i = 0;i < child_num;i++){
         pthread_join(child_threads[i], NULL);
     }
-    g_thread_pool_free(thread_pool, TRUE, TRUE);
+    thread_pool_destroy(thread_pool);
     g_async_queue_unref(queue);
     g_timer_destroy(timer);
 }
@@ -336,8 +419,7 @@ process_query (const gchar *query, process_env_t *env)
     guint sz;
     PostingPair *pair;
     gdouble time;
-    Tokenizer *tok;
-    GAsyncQueue *search_queue;
+    Tokenizer *tok; 
     guint num_phrases;
     phrase_search_arg_t *arg;
 
@@ -346,7 +428,6 @@ process_query (const gchar *query, process_env_t *env)
     output_header = g_string_new("");
     output_body = g_string_new("");
     ret.size = 0;
-    search_queue = g_async_queue_new();
     num_phrases = 0;
 
     if (option.relay == FALSE) {
@@ -363,20 +444,19 @@ process_query (const gchar *query, process_env_t *env)
 
             arg = g_malloc(sizeof(phrase_search_arg_t));
             arg->phrase_str = phrase_str;
-            arg->queue = search_queue;
-            g_thread_pool_push(env->thread_pool, arg, NULL);
+            thread_pool_push(env->thread_pool, arg);
 
             g_match_info_next (match_info, NULL);
         }
 
-        for(;num_phrases > 0;num_phrases--){
-            arg = g_async_queue_pop(search_queue);
+        for(;num_phrases > 0 && base_list != NULL;num_phrases--){
+            arg = thread_pool_pop(env->thread_pool);
             tmp_list = fixed_posting_list_doc_intersect(base_list,
                                                          arg->ret);
-            base_list = tmp_list;
             fixed_posting_list_free(base_list);
             fixed_posting_list_free(arg->ret);
             g_free(arg);
+            base_list = tmp_list;
         }
 
         if (base_list != NULL){
@@ -427,12 +507,11 @@ process_query (const gchar *query, process_env_t *env)
     }
     g_string_free(output_header, TRUE);
     g_string_free(output_body, TRUE);
-    g_async_queue_unref(search_queue);
     MSG("==== process_query: finished ====\n");
 }
 
 void
-phrase_search_thread_func (gpointer data, gpointer user_data)
+phrase_search_thread_func (GAsyncQueue *queue, gpointer data)
 {
     phrase_search_arg_t *arg = (phrase_search_arg_t *) data;
     Tokenizer *tok;
@@ -450,7 +529,7 @@ phrase_search_thread_func (gpointer data, gpointer user_data)
 
     // result
     arg->ret = list;
-    g_async_queue_push(arg->queue, arg);
+    g_async_queue_push(queue, arg);
     phrase_free(phrase);
     tokenizer_free(tok);
 }

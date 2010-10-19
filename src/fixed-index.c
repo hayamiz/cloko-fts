@@ -95,23 +95,30 @@ fixed_index_phrase_get (FixedIndex *findex, Phrase *phrase)
     else if (phrase_size(phrase) == 1)
         return fixed_index_get(findex, phrase_nth(phrase, 0));
 
-    FixedPostingList *base_list = fixed_index_get(findex, phrase_nth(phrase, 0));
-    FixedPostingList *succ_list = NULL;
+    FixedPostingList *base_list;
+    FixedPostingList *succ_list;
+    FixedPostingList *tmp;
     guint phrase_idx;
-    guint sz = phrase_size(phrase);
+    guint sz;
+
+    base_list = fixed_index_get(findex, phrase_nth(phrase, 0));
     if (base_list == NULL) {
         return NULL;
     }
+    succ_list = NULL;
+    tmp = NULL;
+    sz = phrase_size(phrase);
 
     for(phrase_idx = 1; phrase_idx < sz && fixed_posting_list_size(base_list); phrase_idx++){
         succ_list = fixed_index_get(findex, phrase_nth(phrase, phrase_idx));
-        FixedPostingList *tmp;
         tmp = fixed_posting_list_select_successor(base_list, succ_list, phrase_idx);
         fixed_posting_list_free(base_list);
+        fixed_posting_list_free(succ_list);
         base_list = tmp;
     }
 
     if (fixed_posting_list_size(base_list) == 0){
+        fixed_posting_list_free(base_list);
         return NULL;
     }
 

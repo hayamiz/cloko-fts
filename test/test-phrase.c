@@ -21,12 +21,6 @@ cut_teardown (void)
         phrase_free(phrase);
 }
 
-Phrase *
-take_phrase(Phrase *phrase)
-{
-    return (Phrase *) cut_take(phrase, (CutDestroyFunction) phrase_free);
-}
-
 void
 test_phrase_new (void)
 {

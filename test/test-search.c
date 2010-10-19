@@ -126,4 +126,49 @@ test_search_docset001 (void)
                             cut_message("search failed on \"%s\"\n", entry->term));
         cut_assert_equal_uint(entry->num, fixed_posting_list_size(fplist));
     }
+
+    const gchar *phrase_strs[] =
+        {"今年こそはゴルフを極めようと",
+         "今年こそはゴルフで",
+         // "時に限ってやって来るんですねもう久しぶりに同級",
+         "に限ってやって来るんですねもう久しぶりに",
+         "日程前から",
+         "２",
+         "配信中。ぜひ、",
+         "ＢＡＴＴＬＥ　",
+         "ＡＣＥＳ−」の",
+         "はまぐりは対となる貝殻としか組み合わせることができないので、",
+         "貝紅山形県",
+         // "彩",
+         "彩色",
+         "鶴岡市松岡機業）、",
+         "予約しちゃいましたとも。",
+         "２３日の",
+         "タイム",
+         "６０時間" ,
+         "ｎａｍｅ　’＊．ｈｔｍｌ’　｜　ｘａｒｇｓ　ｐｅｒｌ　−ｐ　−ｉ　−",
+         "ｆｉｎｄ　．−",
+         "４年ほど前に作った，静的な",
+
+         NULL};
+    const gchar *phrase_str;
+
+    guint idx;
+    for (idx = 0; phrase_strs[idx] != NULL; idx++){
+        phrase_str = phrase_strs[idx];
+        if (!take_fplist(
+                fixed_index_phrase_get(findex, take_phrase(phrase_from_string(phrase_str))))){
+            fprintf(stderr, "\nphrase search failed:\n %s\n", phrase_str);
+            Phrase *phrase = take_phrase(phrase_from_string(phrase_str));
+            guint j;
+            fprintf(stderr, "  Prase:\n");
+            for (j = 0; j < phrase_size(phrase); j++){
+                fprintf(stderr, "    \"%s\"\n", phrase_nth(phrase, j));
+            }
+            fixed_index_phrase_get(findex, take_phrase(phrase_from_string(phrase_str)));
+            cut_test_fail("phrase search failed.");
+        }
+
+        fprintf(stderr, "phrase search ok: [%d] %s\n", idx, phrase_str);
+    }
 }

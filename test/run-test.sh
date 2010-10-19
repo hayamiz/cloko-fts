@@ -32,7 +32,7 @@ export LC_ALL
 echo $CUTTER_WRAPPER $CUTTER $CUTTER_ARGS "$@" $BASE_DIR
 $CUTTER_WRAPPER $CUTTER $CUTTER_ARGS "$@" $BASE_DIR
 
-if test "$?" -eq "0" && test x"$CUTTER_CHECK_LEAK" = x"yes"; then
+if test x"$CUTTER_CHECK_LEAK" = x"yes"; then
     PAGER=${PAGER}
     if test -z "${PAGER}"; then
 	PAGER="less"

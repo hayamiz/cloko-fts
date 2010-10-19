@@ -14,7 +14,8 @@ libinv_index_la_SOURCES =			\
 	fixed-posting-list.c			\
 	fixed-index.c				\
 	phrase.c				\
-	thread-pool.c
+	thread-pool.c				\
+	frame.c
 
 libbloom_filter_la_SOURCES =			\
 	bloom-filter.c

@@ -24,19 +24,47 @@ static void standalone (void);
 static void *child_downstreamer (void *data);
 static void *child_upstreamer (void *data);
 static gchar *get_hostname (void);
+static GList *query_to_phrases (const gchar *query);
 static void process_query(const gchar *query, process_env_t *env);
-void   phrase_search_thread_func (GAsyncQueue *queue, gpointer user_data);
+static void *sender_thread_func (void *data);
 static inline ssize_t send_all(gint sockfd, const gchar *msg, ssize_t size);
 static inline ssize_t recv_all(gint sockfd, gchar *res, ssize_t size);
 
-#define MSG(...)                                \
+#define NOT_IMPLEMENTED()                               \
+    {                                                   \
+        g_printerr("[%s] %s@%d: Not implemented.\n",    \
+                   hostname, __FILE__, __LINE__);       \
+        exit(EXIT_FAILURE);                             \
+    }
+
+#define MSG(...)                                        \
+    {                                                   \
+        if (option.verbose == TRUE) {                   \
+            flockfile(stderr);                          \
+            fprintf(stderr, "[%s] %s@%d: ",             \
+                    hostname, __FILE__, __LINE__);      \
+            fprintf(stderr, __VA_ARGS__);               \
+            funlockfile(stderr);                        \
+        }                                               \
+    }
+
+#define NOTICE(...)                             \
     {                                           \
-        if (option.verbose == TRUE) {           \
-            flockfile(stderr);                  \
-            fprintf(stderr, "[%s] ", hostname); \
-            fprintf(stderr, __VA_ARGS__);       \
-            funlockfile(stderr);                \
-        }                                       \
+        flockfile(stderr);                      \
+        fprintf(stderr, "[%s] %s@%d: ",         \
+                hostname, __FILE__, __LINE__);  \
+        fprintf(stderr, __VA_ARGS__);           \
+        funlockfile(stderr);                    \
+    }
+
+#define FATAL(...)                              \
+    {                                           \
+        flockfile(stderr);                      \
+        fprintf(stderr, "[%s] %s@%d: ",         \
+                hostname, __FILE__, __LINE__);  \
+        fprintf(stderr, __VA_ARGS__);           \
+        funlockfile(stderr);                    \
+        exit(EXIT_FAILURE);                     \
     }
 
 static gboolean exit_flag = FALSE;
@@ -63,6 +91,7 @@ static struct {
 struct process_env {
     gint sockfd;
     GAsyncQueue *queue;
+    GAsyncQueue *sender_queue;
     guint child_num;
     GTimer *timer;
     ThreadPool *thread_pool;
@@ -75,8 +104,7 @@ typedef struct phrase_search {
 } phrase_search_arg_t;
 
 typedef struct query_result {
-    guint size;
-    gchar *retstr;
+    GList *frames;
 } query_result_t;
 
 static GOptionEntry entries[] =
@@ -184,12 +212,14 @@ void
 run(void)
 {
     pthread_t *child_threads = NULL;
+    pthread_t sender_thread;
     pthread_barrier_t barrier;
     child_arg_t *child_thread_args = NULL;
     guint child_num = 0;
     gchar **child_hostnames = NULL;
     gint i;
     GAsyncQueue *queue = g_async_queue_new();
+    GAsyncQueue *sender_queue = g_async_queue_new();
     gchar *query;
     ThreadPool *thread_pool;
 
@@ -257,64 +287,76 @@ run(void)
                hostname, option.port);
 
     gchar recv_block[RECV_BLOCK_SIZE];
-    GString *recvbuf;
     gssize sz;
     const gchar *eolptr;
     GTimer *timer;
     gint client_sockfd;
-
+    Frame *frame;
+    process_env_t env;
     timer = g_timer_new();
-    recvbuf = g_string_new("");
+    frame = frame_new();
+    env.queue = queue;
+    env.sender_queue = sender_queue;
+    env.child_num = child_num;
+    env.timer = timer;
+    env.thread_pool = thread_pool;
+
+    if (pthread_create(&sender_thread, NULL, sender_thread_func, &env) != 0){
+        FATAL("pthread create failed\n");
+    }
 
 accept_again:
     if ((client_sockfd = accept(sockfd, res->ai_addr, &res->ai_addrlen)) == -1){
-        MSG("accept failed: errno = %d\n", errno);
         shutdown(sockfd, SHUT_RDWR);
         close(sockfd);
-        exit(EXIT_FAILURE);
+        FATAL("accept failed: errno = %d\n", errno);
     }
     MSG("accepted connection\n");
+    env.sockfd = client_sockfd;
 
-    while((sz = read(client_sockfd, recv_block, RECV_BLOCK_SIZE)) > 0){
-        g_string_append_len(recvbuf, recv_block, sz);
-        MSG("==== received: ====\n");
-    retry:
-        if ((eolptr = index(recvbuf->str, '\n')) == NULL){
-            continue;
-        }
-        if (strncmp("QUIT\n", recvbuf->str, 5) == 0){
-            MSG("==== QUIT command ====\n");
-            exit_flag = TRUE;
+    while((sz = frame_recv(sockfd, frame)) > 0){
+        switch (frame_type(frame)) {
+        case FRM_QUERY:
+            query = g_strndup(frame->body.q.buf,
+                              frame->body.q.length);
+            // TODO: this 'query' causes memory leaks
             pthread_barrier_wait(&barrier);
 
-            goto quit;
-        } else if (strncmp("BYE\n", recvbuf->str, 4) == 0){
-            MSG("==== BYE command ====\n");
-            sz = 0;
-            break;
-        } else if (strncmp("QUERY ", recvbuf->str, 6) == 0){
-            guint qlen = (eolptr - (recvbuf->str + 6)) * sizeof(gchar);
-            MSG("==== QUERY command ====\n");
-            query = g_strndup(recvbuf->str + 6, qlen);
-            pthread_barrier_wait(&barrier);
-
-            process_env_t env;
-            env.sockfd = client_sockfd;
-            env.queue = queue;
-            env.child_num = child_num;
-            env.timer = timer;
-            env.thread_pool = thread_pool;
             process_query(query, &env);
-            g_free(query);
+            break;
+        case FRM_LONG_QUERY_FIRST:
+            NOT_IMPLEMENTED();
+            break;
+        case FRM_LONG_QUERY_REST:
+            NOT_IMPLEMENTED();
+            break;
+        case FRM_RESULT:
+            NOT_IMPLEMENTED();
+            break;
+        case FRM_LONG_RESULT_FIRST:
+            NOT_IMPLEMENTED();
+            break;
+        case FRM_LONG_RESULT_REST:
+            NOT_IMPLEMENTED();
+            break;
+        case FRM_BYE:
+            MSG("BYE\n");
+            sz = 0;
+            shutdown(client_sockfd, SHUT_RDWR);
+            close(client_sockfd);
+            goto accept_again;
+            break;
+        case FRM_QUIT:
+            MSG("QUIT\n");
+            exit_flag = TRUE;
+            // push dummy data to wake up sender thread
+            g_async_queue_push(sender_queue, (gpointer) 0x1);
+            pthread_barrier_wait(&barrier);
+            goto quit;
+            break;
         }
-        g_string_erase(recvbuf, 0, ((eolptr + 1) - recvbuf->str) * sizeof(gchar));
-        goto retry;
     }
     if (sz == 0){
-        g_string_set_size(recvbuf, 0);
-        shutdown(client_sockfd, SHUT_RDWR);
-        close(client_sockfd);
-        goto accept_again;
     } else if (sz < 0) {
         MSG("invalid end of stream.\n");
         shutdown(sockfd, SHUT_RDWR);
@@ -325,111 +367,113 @@ quit:
     shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
     freeaddrinfo(res);
-    g_string_free(recvbuf, TRUE);
     for(i = 0;i < child_num;i++){
         pthread_join(child_threads[i], NULL);
     }
     thread_pool_destroy(thread_pool);
     g_async_queue_unref(queue);
+    g_async_queue_unref(sender_queue);
     g_timer_destroy(timer);
+}
+
+static GList *
+query_to_phrases (const gchar *query)
+{
+    GList *phrases;
+    GRegex *regex;
+    GMatchInfo *match_info;
+    const gchar *phrase_str;
+
+    phrases = NULL;
+    regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
+
+    while (g_match_info_matches (match_info))
+    {
+        phrase_str = g_match_info_fetch (match_info, 1);
+        phrases = g_list_prepend(phrases, phrase_from_string(phrase_str));
+        g_match_info_next (match_info, NULL);
+    }
+    g_regex_unref(regex);
+    g_match_info_free(match_info);
+
+    return phrases;
 }
 
 void
 process_query (const gchar *query, process_env_t *env)
 {
-    GRegex *regex;
-    GMatchInfo *match_info;
-    query_result_t ret;
-    query_result_t *tmp;
+    query_result_t *qres;
     FixedPostingList *base_list;
     FixedPostingList *tmp_list;
     FixedPostingList *fplist;
-    GString *output_header;
-    GString *output_body;
     guint i;
     guint sz;
     PostingPair *pair;
     gdouble time;
     GList *phrases;
-    gchar *phrase_str;
+
+    GList *frames;
+    GList *frames_head;
+    GList *last_frame;
+
+    phrases = NULL;
+    base_list = NULL;
+    tmp_list = NULL;
+    frames = NULL;
 
     g_timer_start(env->timer);
-
-    output_header = g_string_new("");
-    output_body = g_string_new("");
-    ret.size = 0;
-    phrases = NULL;
-
     if (option.relay == FALSE) {
-        regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
-        base_list = NULL;
-        tmp_list = NULL;
-
-        g_regex_match (regex, query, 0, &match_info);
-        while (g_match_info_matches (match_info))
-        {
-            phrase_str = g_match_info_fetch (match_info, 1);
-            phrases = g_list_prepend(phrases, phrase_from_string(phrase_str));
-            g_match_info_next (match_info, NULL);
-        }
-
+        phrases = query_to_phrases(query);
         fplist = fixed_index_multithreaded_multiphrase_get(findex, env->thread_pool, phrases);
-
-        g_match_info_free(match_info);
+        frames = g_list_concat(frames,
+                               frame_make_result_from_fixed_posting_list(docset, fplist));
+        frames_head = frames;
+        last_frame = g_list_last(frames);
+        frames = last_frame;
         MSG("query processing time: %lf [msec]\n",
             (time = g_timer_elapsed(env->timer, NULL) * 1000));
-        g_regex_unref(regex);
     }
-    g_timer_start(env->timer);
 
+    g_timer_start(env->timer);
     MSG("process_query: aggregating children's results\n");
     for(i = 0;i < env->child_num;i++){
-        tmp = (query_result_t *)g_async_queue_pop(env->queue);
-        ret.size += tmp->size;
-        g_string_append(output_body, tmp->retstr);
-        g_free(tmp->retstr);
-        g_free(tmp);
+        qres = (query_result_t *) g_async_queue_pop(env->queue);
+        if (qres->frames == NULL)
+            continue;
+        last_frame = g_list_last(qres->frames);
+        frames = g_list_concat(frames, qres->frames);
+        frames = last_frame;
+        g_free(qres);
     }
     MSG("process_query: aggregated: %lf msec\n",
         (time = g_timer_elapsed(env->timer, NULL) * 1000));
-
-    // g_print("# <query_id> %d\n", ret.size);
-    // printf(buf->str);
-    MSG("RESULT %d %d\n", ret.size, output_body->len);
-    g_string_sprintf(output_header,
-                     "RESULT %d %d\n", ret.size, output_body->len);
-    if (send_all(env->sockfd, output_header->str,
-                  output_header->len) <= 0) {
-        MSG("send_all failed\n");
-        exit(EXIT_FAILURE);
-    }
-    if (output_body->len > 0){
-        if (send_all(env->sockfd, output_body->str,
-                     output_body->len) <= 0) {
-            MSG("send_all failed\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-    g_string_free(output_header, TRUE);
-    g_string_free(output_body, TRUE);
-    MSG("==== process_query: finished ====\n");
+    g_async_queue_push(env->sender_queue, frames_head);
+    MSG("process_query: finished\n");
 }
 
-void
-phrase_search_thread_func (GAsyncQueue *queue, gpointer data)
+static void *
+sender_thread_func (void *data)
 {
-    phrase_search_arg_t *arg = (phrase_search_arg_t *) data;
-    FixedPostingList *list;
-    Phrase *phrase;
-    gchar *term;
+    process_env_t *env;
+    GList *frames;
+    GList *frame_cell;
 
-    phrase = phrase_from_string(arg->phrase_str);
-    list = fixed_index_phrase_get(findex, phrase);
-
-    // result
-    arg->ret = list;
-    g_async_queue_push(queue, arg);
-    phrase_free(phrase);
+    env = data;
+    g_async_queue_ref(env->sender_queue);
+    for(;;) {
+        frames = g_async_queue_pop(env->sender_queue);
+        if (exit_flag)
+            break;
+        if (frame_send_multi_results(env->sockfd, frames) < 0){
+            FATAL("failed sending result: # of frames = %d\n",
+                  g_list_length(frames));
+        }
+        for (frame_cell = frames; frame_cell != NULL; frame_cell = frame_cell->next){
+            frame_free(frame_cell->data);
+        }
+        g_list_free(frames);
+    }
+    g_async_queue_unref(env->sender_queue);
 }
 
 static inline ssize_t
@@ -479,7 +523,9 @@ child_downstreamer (void *data)
     GString *child_hostname;
     gint retry;
     pthread_t upstreamer;
+    Frame quit_frame;
 
+    frame_make_quit(&quit_frame);
     child_hostname = g_string_new("");
     g_string_sprintf(child_hostname, "%s.sc.iis.u-tokyo.ac.jp", arg->child_hostname);
     bzero(&hints, sizeof(struct addrinfo));
@@ -488,11 +534,11 @@ child_downstreamer (void *data)
     hints.ai_socktype = SOCK_STREAM;
 
     if (getaddrinfo(child_hostname->str, option.port, &hints, &res) != 0){
-        MSG("getaddrinfo failed: hostname = %s\n", child_hostname->str);
+        FATAL("getaddrinfo failed: hostname = %s\n", child_hostname->str);
         exit(EXIT_FAILURE);
     }
     if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1){
-        MSG("Cannot make socket\n");
+        FATAL("Cannot make socket\n");
         exit(EXIT_FAILURE);
     }
     if (option.tcp_nodelay == 1){
@@ -500,19 +546,17 @@ child_downstreamer (void *data)
         if (setsockopt(sockfd, IPPROTO_TCP,
                        TCP_NODELAY, (char *) &option.tcp_nodelay,
                        sizeof(gint)) != 0){
-            MSG("setsockopt failed: errno = %d\n", errno);
             close(sockfd);
-            exit(EXIT_FAILURE);
+            FATAL("setsockopt failed: errno = %d\n", errno);
         }
     }
 
 reconnect:
     for(retry = 0;;retry++){
         if (retry > option.timeout){
-            g_printerr("[%s] cannot connect to child %s\n",
-                       hostname, child_hostname->str);
             close(sockfd);
-            exit(EXIT_FAILURE);
+            FATAL("cannot connect to child %s\n",
+                   child_hostname->str);
         }
         if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1){
             // retry
@@ -523,46 +567,42 @@ reconnect:
         }
         break;
     }
-    g_printerr("[%s] connected to child %s\n",
-               hostname,
-               child_hostname->str);
+    NOTICE("connected to child %s\n", child_hostname->str);
 
     arg->sockfd = sockfd;
     if (pthread_create(&upstreamer, NULL, child_upstreamer, arg) != 0){
-        MSG("failed to create upstreamer of %s\n", child_hostname->str);
+        FATAL("failed to create upstreamer of %s\n", child_hostname->str);
         exit(EXIT_FAILURE);
     }
 
     // parent is waiting for children getting ready
     pthread_barrier_wait(arg->barrier);
 
-    GString *tmpbuf;
-
-    tmpbuf = g_string_new("");
-
     for(;;){
-        pthread_barrier_wait(arg->barrier); // wait for QUERY or QUIT command
-        if (exit_flag){
-            send_all(sockfd, "QUIT\n", 5);
+        // wait for QUERY or QUIT command arrival
+        pthread_barrier_wait(arg->barrier);
+        if (exit_flag) {
+            if (frame_send (sockfd, &quit_frame) < 0){
+                FATAL("failed sending QUIT command to %s\n",
+                    child_hostname->str);
+            }
             pthread_cancel(upstreamer);
             pthread_join(upstreamer, NULL);
             shutdown(sockfd, SHUT_RDWR);
             close(sockfd);
-            g_string_free(tmpbuf, TRUE);
             freeaddrinfo(res);
             return NULL;
         }
 
         // query arrived
-        g_string_printf(tmpbuf, "QUERY %s\"\n", *arg->query);
-        if (send_all(sockfd, tmpbuf->str, tmpbuf->len) == -1){
+        if (frame_send_query(sockfd, *arg->query) < 0){
             shutdown(sockfd, SHUT_RDWR);
             pthread_cancel(upstreamer);
-            MSG("upstreamer canceled\n");
+            NOTICE("failed sending query to %d\n",
+                   child_hostname->str);
             pthread_join(upstreamer, NULL);
             goto reconnect;
         }
-        g_string_set_size(tmpbuf, 0);
     }
 }
 
@@ -578,67 +618,16 @@ child_upstreamer (void *data)
     gint bytes;
     gint rest_bytes;
     ssize_t sz;
+    GList *frames;
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     arg = (child_arg_t *) data;
     g_async_queue_ref(arg->queue);
 
-    recvbuf = g_string_new("");
-    for(;;){
-        while((eolptr = index(recvbuf->str, '\n')) == NULL) {
-            sz = read(arg->sockfd, recv_block, RECV_BLOCK_SIZE);
-            if (sz == -1){
-                MSG("(%d): read(2) error: errno = %d\n",
-                    arg->id, errno);
-                exit(EXIT_FAILURE);
-            } else if (sz == 0) {
-                MSG("(%d): child_downstreamer: cannot be happened.\n",
-                    arg->id);
-                exit(EXIT_FAILURE);
-            }
-            g_string_append_len(recvbuf, recv_block, sz);
-        }
-        // MSG("%s(%d): received 1 line\n", arg->id);
-
-        guint linelen = ((eolptr + 1) - recvbuf->str);
-
-        if (strncmp(recvbuf->str, "RESULT ", 7) == 0) {
-            ret = g_malloc(sizeof(query_result_t));
-            ret->size = 0;
-            ret->size = strtol(recvbuf->str + 7, &endptr, 10);
-            bytes = strtol(endptr, NULL, 10);
-            g_string_erase(recvbuf, 0, linelen);
-            rest_bytes = bytes - recvbuf->len;
-            // g_printerr("%s(%d): result: size=%d, bytes = %d, rest_bytes = %d, recvbuf->len = %d, orig: '%.30s'\n",
-            //            hostname, arg->id, ret->size, bytes, rest_bytes, recvbuf->len, recvbuf->str);
-            ret->retstr = g_malloc(sizeof(gchar) * (bytes + 1));;
-            if (recvbuf->len >= bytes) {
-                memcpy(ret->retstr, recvbuf->str, bytes * sizeof(gchar));
-                g_string_erase(recvbuf, 0, bytes);
-            } else {
-                if (recvbuf->len > 0) {
-                    memcpy(ret->retstr, recvbuf->str, recvbuf->len * sizeof(gchar));
-                }
-                sz = recv_all(arg->sockfd, ret->retstr + recvbuf->len, sizeof(gchar) * rest_bytes);
-                g_string_set_size(recvbuf, 0);
-                if (sz == -1){
-                    // error
-                    // g_printerr("%s(%d): socket error (closed?)\n",
-                    //            hostname, arg->id);
-                    exit(EXIT_FAILURE);
-                } else if (sz != rest_bytes){
-                    // error
-                    // g_printerr("%s(%d): data may be lost\n",
-                    //            hostname, arg->id);
-                }
-            }
-            ret->retstr[bytes] = '\0';
-            g_async_queue_push(arg->queue, ret);
-        } else {
-            // g_printerr("%s(%d): not RESULT: %.50s\n",
-            //            hostname, arg->id, recvbuf->str);
-            g_string_erase(recvbuf, 0, linelen);
-        }
+    while ((frames = frame_recv_result(arg->sockfd)) != NULL){
+        ret = g_malloc(sizeof(query_result_t));
+        ret->frames = frames;
+        g_async_queue_push(arg->queue, ret);
     }
 
     MSG("(%d): upstreamer exit\n", arg->id);

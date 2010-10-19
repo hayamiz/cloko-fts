@@ -4,6 +4,10 @@
 #include <string.h>
 #include <glib.h>
 #include <mecab.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <limits.h>
 
 #include <bloom-filter.h>
 #include <thread-pool.h>
@@ -149,5 +153,82 @@ ThreadPool       *fixed_index_make_thread_pool (guint thread_num);
 FixedPostingList *fixed_index_multithreaded_multiphrase_get (const FixedIndex *findex,
                                                              ThreadPool *pool,
                                                              GList *list);
+
+#define FRAME_HEADER_SIZE (3 * sizeof(guint32))
+#define FRAME_SIZE        8192
+#define FRAME_BODY_SIZE   (FRAME_SIZE - FRAME_HEADER_SIZE)
+#define FRAME_CONTENT_SIZE   (FRAME_SIZE - FRAME_HEADER_SIZE - sizeof(guint32))
+
+typedef enum {
+    FRM_QUERY = 0,
+    FRM_LONG_QUERY_FIRST = 1,
+    FRM_LONG_QUERY_REST = 2,
+    FRM_RESULT = 3,
+    FRM_LONG_RESULT_FIRST = 4,
+    FRM_LONG_RESULT_REST = 5,
+    FRM_BYE = 6,
+    FRM_QUIT = 7,
+} FrameType;
+
+typedef struct _FrameQueryBody {
+    guint32 length;
+    gchar buf[FRAME_CONTENT_SIZE];
+} FrameQueryBody;
+
+typedef struct _FrameLongQueryFirstBody {
+    guint32 frm_length;
+    gchar buf[FRAME_CONTENT_SIZE];
+} FrameLongQueryFirstBody;
+
+typedef struct _FrameLongQueryRestBody {
+    guint32 length;
+    gchar buf[FRAME_CONTENT_SIZE];
+} FrameLongQueryRestBody;
+
+typedef struct _FrameResultBody {
+    guint32 length;
+    gchar buf[FRAME_CONTENT_SIZE];
+} FrameResultBody;
+
+typedef struct _FrameLongResultFisrstBody {
+    guint32 frm_length;
+    gchar buf[FRAME_CONTENT_SIZE];
+} FrameLongResultFirstBody;
+
+typedef struct _FrameLongResultRestBody {
+    guint32 length;
+    gchar buf[FRAME_CONTENT_SIZE];
+} FrameLongResultRestBody;
+
+typedef struct _Frame {
+    guint32 type;
+    guint32 content_length;
+    guint32 extra_field;
+    union {
+        FrameQueryBody q;
+        FrameLongQueryFirstBody lqf;
+        FrameLongQueryRestBody  lqr;
+        FrameResultBody r;
+        FrameLongResultFirstBody lrf;
+        FrameLongResultRestBody lrr;
+    } body;
+} Frame;
+
+typedef union _RawFrame {
+    gchar buf[FRAME_SIZE];
+    Frame frame;
+} RawFrame;
+
+Frame   *frame_new               (void);
+void    frame_free               (Frame *frame);
+void    frame_make_quit          (Frame *frame);
+GList   *frame_make_result_from_fixed_posting_list (DocumentSet *docset,
+                                                  FixedPostingList *fplist);
+gssize  frame_send               (gint sockfd, Frame *frame);
+gssize  frame_send_multi_results (gint sockfd, GList *frames);
+gssize  frame_send_query         (gint sockfd, const gchar *query);
+gssize  frame_recv               (gint sockfd, Frame *frame);
+GList  *frame_recv_result        (gint sockfd);
+guint32 frame_type               (Frame *frame);
 
 #endif

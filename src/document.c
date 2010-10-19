@@ -43,13 +43,14 @@ document_parse (DocumentSet *docset, const gchar *text, guint offset, gint doc_i
     ptr = next_ptr + 1;
 
     doc->body_pointer_offset = ptr - text;
-    if ((next_ptr = strstr(ptr, "\nEOD")) == NULL){
+    if ((next_ptr = strstr(ptr, "\nEOD\n")) == NULL){
         goto failure;
     }
+    next_ptr += 5; // include '\nEOD\n'
     doc->size = next_ptr - (text + offset);
-    doc->body_size = next_ptr - ptr;
+    doc->body_size = next_ptr - ptr - 5;
 
-    *endptr = next_ptr + 5;
+    *endptr = next_ptr;
 
     return doc;
 
@@ -115,7 +116,7 @@ gchar *
 document_raw_record   (Document *doc)
 {
     if (doc->docset){
-        return (doc ? g_strndup(doc->docset->buffer + doc->pos, doc->size + 5) : NULL);
+        return (doc ? g_strndup(doc->docset->buffer + doc->pos, doc->size) : NULL);
     } else {
         return NULL;
     }

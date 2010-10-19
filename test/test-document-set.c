@@ -18,7 +18,8 @@ void cut_setup (void)
 
     cut_set_fixture_data_dir(dir, "fixtures", NULL);
 
-    test_data_file = cut_build_fixture_data_path("test_load_data.txt", NULL);
+    test_data_file = cut_take_string(cut_build_fixture_data_path("test_load_data.txt",
+                                                                 NULL));
 }
 
 void

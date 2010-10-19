@@ -17,3 +17,10 @@ stamp-h1
 /src/config.h.in
 /test_query_34_2.txt
 /test_query_cloko001.txt
+/alive_nodes.list
+/GPATH
+/GRTAGS
+/GSYMS
+/GTAGS
+/src/fts-search
+/src/termdump

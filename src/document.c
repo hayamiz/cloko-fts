@@ -58,6 +58,17 @@ failure:
     return NULL;
 }
 
+void
+document_free (Document *doc)
+{
+    g_return_if_fail(doc);
+
+    g_free(doc->url);
+    g_free(doc->url_top);
+    g_free(doc->title);
+    g_free(doc);
+}
+
 gint
 document_id (Document *doc)
 {

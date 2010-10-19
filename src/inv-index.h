@@ -14,9 +14,9 @@ typedef struct _Document {
     guint time;
     guint size;
     guint body_size;
-    const gchar *title;
-    const gchar *url;
-    const gchar *url_top;
+    gchar *title;
+    gchar *url;
+    gchar *url_top;
     guint body_pointer_offset;
     struct _DocumentSet *docset;
 } Document;
@@ -67,6 +67,7 @@ Document    *document_parse        (DocumentSet  *docset,
                                     guint         offset,
                                     gint          doc_id,
                                     const gchar **endptr);
+void         document_free         (Document *doc);
 gint         document_id           (Document *doc);
 guint        document_position     (Document *doc);
 const gchar *document_body_pointer (Document *doc);

@@ -33,12 +33,15 @@ document_set_load (const gchar *path, guint limit)
     endptr = strbuffer->str;
     while(fgets(buf, 4096 - 1, fp) != NULL){
         g_string_append(strbuffer, buf);
-        if (strstr(strbuffer->str + endptr_idx, "EOD") == NULL){
+        if (strstr(strbuffer->str + endptr_idx, "\nEOD") == NULL){
             continue;
         }
 
         doc = document_parse(docset, strbuffer->str, endptr_idx, doc_id++, &endptr);
-        if (doc == NULL) break;
+        if (doc == NULL){
+            g_printerr("document parse error or end\n");
+            break;
+        }
         endptr_idx = endptr - strbuffer->str;
         docset->size++;
         docset->docs = g_realloc(docset->docs, sizeof(Document *) * docset->size);

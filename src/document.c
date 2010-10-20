@@ -15,35 +15,41 @@ document_parse (DocumentSet *docset, const gchar *text, guint offset, gint doc_i
 
     ptr = text + offset;
     if (*ptr != '#' || *(++ptr) != ' '){
+        g_printerr("failed to find # mark\n");
         goto failure;
     }
     ptr++;
     if ((next_ptr = index(ptr, ' ')) == NULL){
+        g_printerr("failed to find url top\n");
         goto failure;
     }
     doc->url_top = g_strndup(ptr, next_ptr - ptr);
     ptr = next_ptr + 1;
 
     if ((next_ptr = index(ptr, ' ')) == NULL){
+        g_printerr("failed to find url\n");
         goto failure;
     }
     doc->url = g_strndup(ptr, next_ptr - ptr);
     ptr = next_ptr + 1;
 
     if ((next_ptr = index(ptr, ' ')) == NULL){
+        g_printerr("failed to find title\n");
         goto failure;
     }
     doc->title = g_strndup(ptr, next_ptr - ptr);
     ptr = next_ptr + 1;
 
     if ((next_ptr = index(ptr, '\n')) == NULL){
+        g_printerr("failed to parse retrieval time\n");
         goto failure;
     }
     doc->time = strtol(ptr, NULL, 10);
     ptr = next_ptr + 1;
 
     doc->body_pointer_offset = ptr - text;
-    if ((next_ptr = strstr(ptr, "\nEOD\n")) == NULL){
+    if ((next_ptr = strstr(ptr, "\nEOD")) == NULL){
+        g_printerr("failed to find EOD mark\n");
         goto failure;
     }
     next_ptr += 5; // include '\nEOD\n'

@@ -100,7 +100,7 @@ def main(argv)
 
   conn_tree.traverse{|node|
     command = ["ssh", node.hostname,
-               "~/repos/tkl-fulltext-search/src/fts-node",
+               "~/repos/tkl-fulltext-search/fts-node",
                "--daemon",
                "--datafile", "/data/local2/haya/fts/#{node.hostname}.txt",
                "--load-index", "/data/local2/haya/fts/#{node.hostname}.idx"]

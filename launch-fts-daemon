@@ -1,0 +1,22 @@
+#!/bin/bash
+
+top_dir=$(dirname $(readlink -f $0))
+
+datafile=/data/local2/haya/fts/$(hostname -s).txt
+indexfile=/data/local2/haya/fts/$(hostname -s).idx
+
+if ! test -f $datafile; then
+   echo "No datafile: $datafile"
+   exit 1
+fi
+
+if ! test -f $indexfile; then
+   echo "No indexfile: $indexfile"
+   exit 1
+fi
+
+ulimit -c unlimited
+FTS_NODE="$top_dir/fts-node --daemon --datafile $datafile --load-index $indexfile"
+$FTS_NODE $@
+
+

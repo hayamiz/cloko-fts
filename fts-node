@@ -23,6 +23,15 @@ elif test x"$CHECK_LEAK" = x"yes" || test x"$CHECK_LEAK_HIGHRES" = x"yes" ; then
 	FTS_NODE_WRAPPER="$FTS_NODE_WRAPPER --leak-resolution=high"
     fi
     FTS_NODE_WRAPPER="$FTS_NODE_WRAPPER --log-file=${VALGRIND_LOG} -v"
+elif test x"$CHECK_RACE" = x"yes" ; then
+    export G_SLICE=always-malloc
+    export G_DEBUG=gc-friendly
+    VALGRIND_LOG=$(mktemp)
+    VALGRIND_HIGHRES=
+    FTS_NODE_WRAPPER="$top_dir/libtool --mode=execute valgrind "
+    FTS_NODE_WRAPPER="$FTS_NODE_WRAPPER --tool=helgrind "
+
+    FTS_NODE_WRAPPER="$FTS_NODE_WRAPPER --log-file=${VALGRIND_LOG} -v"
 fi
 
 LC_ALL=C
@@ -30,7 +39,7 @@ export LC_ALL
 echo $FTS_NODE_WRAPPER $FTS_NODE $FTS_NODE_ARGS "$@" $BASE_DIR
 $FTS_NODE_WRAPPER $FTS_NODE $FTS_NODE_ARGS "$@" $BASE_DIR
 
-if test x"$CHECK_LEAK" = x"yes"; then
+if test x"$CHECK_LEAK" = x"yes" || test x"$CHECK_RACE" = x"yes"; then
     PAGER=${PAGER}
     if test -z "${PAGER}"; then
 	PAGER="less"

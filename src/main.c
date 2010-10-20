@@ -83,6 +83,7 @@ static struct {
     const gchar *port;
     gboolean daemon;
     gboolean relay;
+    gboolean check_docnum;
     gint doc_limit;
     gint timeout;
     gint tcp_nodelay;
@@ -119,6 +120,7 @@ static GOptionEntry entries[] =
     { "load-index", 'i', 0, G_OPTION_ARG_STRING, &option.load_index, "", "FILE" },
     { "daemon", 'D', 0, G_OPTION_ARG_NONE, &option.daemon, "", NULL },
     { "standalone", 's', 0, G_OPTION_ARG_NONE, &option.standalone, "", NULL },
+    { "check-docnum", 's', 0, G_OPTION_ARG_NONE, &option.check_docnum, "", NULL },
     { "relay", 'r', 0, G_OPTION_ARG_NONE, &option.relay, "", NULL },
     { "network", 'n', 0, G_OPTION_ARG_STRING, &option.network, "host numbers (ex. 000,001) or 'none'", "HOSTS" },
     { "timeout", 't', 0, G_OPTION_ARG_INT, &option.timeout, "Client connect timeout", "SECONDS" },
@@ -165,6 +167,7 @@ parse_args (gint *argc, gchar ***argv)
     option.relay = FALSE;
     option.verbose = FALSE;
     option.parallel = 16;
+    option.check_docnum = FALSE;
 
     context = g_option_context_new ("- test tree model performance");
     g_option_context_add_main_entries (context, entries, NULL);
@@ -758,6 +761,9 @@ main (gint argc, gchar **argv)
         g_print("%s: document loaded: %lf [sec]\n", hostname, g_timer_elapsed(timer, NULL));
         g_print("%s: path: %s, # of documents: %d\n",
                 hostname, option.datafile, document_set_size(docset));
+        if (option.check_docnum){
+            return 0;
+        }
 
         if (option.load_index) {
             g_timer_start(timer);

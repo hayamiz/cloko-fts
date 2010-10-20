@@ -1,0 +1,50 @@
+#!/bin/sh
+
+export BASE_DIR="`dirname $0`"
+top_dir=$(readlink -f $BASE_DIR)
+
+if test -z "$DEBUGEE_COMMAND"; then
+    echo "Pleas specify debugee by DEBUGEE_COMMAND"
+    exit 1
+fi
+
+DEBUGEE_ARGS=
+DEBUGEE_WRAPPER=
+if test x"$DEBUG" = x"yes"; then
+    DEBUGEE_WRAPPER="$top_dir/libtool --mode=execute gdb --args"
+elif test x"$CHECK_LEAK" = x"yes" || test x"$CHECK_LEAK_HIGHRES" = x"yes" ; then
+    export G_SLICE=always-malloc
+    export G_DEBUG=gc-friendly
+    VALGRIND_LOG=$(mktemp)
+    VALGRIND_HIGHRES=
+    DEBUGEE_WRAPPER="$top_dir/libtool --mode=execute valgrind "
+    DEBUGEE_WRAPPER="$DEBUGEE_WRAPPER --leak-check=full "
+
+    if test x"$CHECK_LEAK_HIGHRES" = x"yes"; then
+	DEBUGEE_WRAPPER="$DEBUGEE_WRAPPER --leak-resolution=high"
+    fi
+    DEBUGEE_WRAPPER="$DEBUGEE_WRAPPER --log-file=${VALGRIND_LOG} -v"
+elif test x"$CHECK_RACE" = x"yes" ; then
+    export G_SLICE=always-malloc
+    export G_DEBUG=gc-friendly
+    VALGRIND_LOG=$(mktemp)
+    VALGRIND_HIGHRES=
+    DEBUGEE_WRAPPER="$top_dir/libtool --mode=execute valgrind "
+    DEBUGEE_WRAPPER="$DEBUGEE_WRAPPER --tool=helgrind "
+
+    DEBUGEE_WRAPPER="$DEBUGEE_WRAPPER --log-file=${VALGRIND_LOG} -v"
+fi
+
+LC_ALL=C
+export LC_ALL
+echo $DEBUGEE_WRAPPER $DEBUGEE_COMMAND $DEBUGEE_ARGS "$@"
+$DEBUGEE_WRAPPER $DEBUGEE_COMMAND $DEBUGEE_ARGS "$@"
+
+if test x"$CHECK_LEAK" = x"yes" || test x"$CHECK_RACE" = x"yes"; then
+    PAGER=${PAGER}
+    if test -z "${PAGER}"; then
+	PAGER="less"
+    fi
+    $PAGER $VALGRIND_LOG
+    rm $VALGRIND_LOG
+fi

@@ -1,0 +1,3 @@
+#!/bin/bash
+
+DEBUGEE_COMMAND=src/fts-search ./debug-wrapper $@

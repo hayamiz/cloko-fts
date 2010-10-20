@@ -373,7 +373,8 @@ accept_again:
             exit_flag = TRUE;
             // push dummy data to wake up sender thread
             g_async_queue_push(sender_queue, (gpointer) SENDER_QUIT);
-            g_async_queue_push(qqueue, (gpointer) SENDER_QUIT);
+            for (idx = 0; idx < child_num; idx++)
+                g_async_queue_push(qqueue, (gpointer) SENDER_QUIT);
             // pthread_barrier_wait(&barrier);
             MSG("close connection with QUIT command.\n");
             goto quit;
@@ -648,6 +649,8 @@ reconnect:
         // wait for QUERY or QUIT command arrival
         query = g_async_queue_pop(arg->qqueue);
         if (exit_flag) {
+            NOTICE("sending QUIT command to %s\n",
+                   child_hostname->str);
             if (frame_send (sockfd, &quit_frame) < 0){
                 FATAL("failed sending QUIT command to %s\n",
                     child_hostname->str);

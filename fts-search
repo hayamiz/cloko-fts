@@ -1,3 +1,4 @@
 #!/bin/bash
 
-DEBUGEE_COMMAND=src/fts-search ./debug-wrapper $@
+base_dir=$(dirname $(readlink -f $0))
+DEBUGEE_COMMAND="$base_dir/src/fts-search" "$base_dir/debug-wrapper" "$@"

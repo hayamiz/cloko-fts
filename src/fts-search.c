@@ -41,11 +41,13 @@ typedef struct _Query {
 
 static struct {
     gboolean verbose;
+    gboolean quit;
     FILE *output;
 } option;
 
 static GOptionEntry entries[] =
 {
+    { "quit", 'q', 0, G_OPTION_ARG_NONE, &option.quit, "send QUIT command", NULL },
     { NULL }
 };
 
@@ -57,6 +59,7 @@ parse_args (gint *argc, gchar ***argv)
 
     option.verbose = TRUE;
     option.output = stdout;
+    option.quit = FALSE;
 
     context = g_option_context_new ("- test tree model performance");
     g_option_context_add_main_entries (context, entries, NULL);
@@ -144,6 +147,12 @@ process_query(const gchar *host,
     GString *child_hostname;
     gint retry;
     pthread_t receiver;
+    guint idx;
+
+    for(idx = 0; idx < qn; idx++){
+        fprintf(stderr, "## %d %s\n", idx + 1, qs[idx].str);
+    }
+    fprintf(stderr, "#####################################\n");
 
     bzero(&hints, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
@@ -172,19 +181,26 @@ process_query(const gchar *host,
         exit(EXIT_FAILURE);
     }
 
+    if (option.quit){
+        frame_send_quit(sockfd);
+        shutdown(sockfd, SHUT_RDWR);
+        close(sockfd);
+        return;
+    }
+
     if (pthread_create(&receiver, NULL, receiver_thread, (void *)(gint64) sockfd) != 0){
         g_printerr("failed to make receiver thread: errno = %d\n",
                    errno);
         exit(EXIT_FAILURE);
     }
 
-    guint idx;
     for(idx = 0; idx < qn; idx++){
         frame_send_query(sockfd, qs[idx].str);
     }
     frame_send_bye(sockfd);
-
     pthread_join(receiver, NULL);
+    shutdown(sockfd, SHUT_RDWR);
+    close(sockfd);
 }
 
 gint

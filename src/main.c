@@ -30,6 +30,9 @@ static void *sender_thread_func (void *data);
 static inline ssize_t send_all(gint sockfd, const gchar *msg, ssize_t size);
 static inline ssize_t recv_all(gint sockfd, gchar *res, ssize_t size);
 
+#define SENDER_QUIT ((gpointer) 0x1)
+#define SENDER_BYE  ((gpointer) 0x3)
+
 #define NOT_IMPLEMENTED()                               \
     {                                                   \
         g_printerr("[%s] %s@%d: Not implemented.\n",    \
@@ -86,12 +89,14 @@ static struct {
     gint tcp_cork;
     gboolean verbose;
     gboolean standalone;
+    gint parallel;
 } option;
 
 struct process_env {
     gint sockfd;
     GAsyncQueue *queue;
     GAsyncQueue *sender_queue;
+    pthread_barrier_t *send_barrier;
     guint child_num;
     GTimer *timer;
     ThreadPool *thread_pool;
@@ -124,6 +129,7 @@ static GOptionEntry entries[] =
       "TCP_CORK: 0 -> disable, 1 -> enable (default: disabled)", "VAL" },
     { "doc-limit", 'l', 0, G_OPTION_ARG_INT, &option.doc_limit, "", "NUM" },
     { "verbose", 'v', 0, G_OPTION_ARG_NONE, &option.verbose, "", NULL },
+    { "parallel", 'P', 0, G_OPTION_ARG_INT, &option.parallel, "", "NUM" },
     { NULL }
 };
 
@@ -135,6 +141,10 @@ typedef struct _child_arg_t {
     gchar **query;
     GAsyncQueue *queue;
 } child_arg_t;
+
+typedef struct _sender_arg {
+    GList *frames;
+} sender_arg_t;
 
 void
 parse_args (gint *argc, gchar ***argv)
@@ -154,6 +164,7 @@ parse_args (gint *argc, gchar ***argv)
     option.tcp_cork = 0;
     option.relay = FALSE;
     option.verbose = FALSE;
+    option.parallel = 16;
 
     context = g_option_context_new ("- test tree model performance");
     g_option_context_add_main_entries (context, entries, NULL);
@@ -214,6 +225,7 @@ run(void)
     pthread_t *child_threads = NULL;
     pthread_t sender_thread;
     pthread_barrier_t barrier;
+    pthread_barrier_t send_barrier;
     child_arg_t *child_thread_args = NULL;
     guint child_num = 0;
     gchar **child_hostnames = NULL;
@@ -223,7 +235,7 @@ run(void)
     gchar *query;
     ThreadPool *thread_pool;
 
-    thread_pool = fixed_index_make_thread_pool(16);
+    thread_pool = fixed_index_make_thread_pool(option.parallel);
 
     if (option.network != NULL && strcmp("none", option.network) != 0){
         child_hostnames = g_strsplit(option.network, ",", 0);
@@ -246,6 +258,8 @@ run(void)
         pthread_barrier_init(&barrier, NULL, 1);
     }
 
+    pthread_barrier_init(&send_barrier, NULL, 2);
+
     // wait children
     pthread_barrier_wait(&barrier);
 
@@ -260,28 +274,23 @@ run(void)
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags |= AI_PASSIVE;
     if (getaddrinfo(NULL, option.port, &hints, &res) != 0){
-        MSG("getaddrinfo failed.\n");
-        exit(EXIT_FAILURE);
+        FATAL("getaddrinfo failed.\n");
     }
     if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1){
-        MSG("socket failed: errno = %d\n", errno);
-        exit(EXIT_FAILURE);
+        FATAL("socket failed: errno = %d\n", errno);
     }
     if (setsockopt(sockfd, SOL_SOCKET,
                    SO_REUSEADDR, (char * ) & on, sizeof (on)) != 0){
-        MSG("setsockopt failed.\n");
         close(sockfd);
-        exit(EXIT_FAILURE);
+        FATAL("setsockopt failed.\n");
     }
     if (bind(sockfd, res->ai_addr, res->ai_addrlen) == -1){
-        MSG("bind failed.\n");
         close(sockfd);
-        exit(EXIT_FAILURE);
+        FATAL("bind failed.\n");
     }
     if (listen(sockfd, 32)){
-        MSG("listen failed.\n");
         close(sockfd);
-        exit(EXIT_FAILURE);
+        FATAL("listen failed.\n");
     }
     g_printerr("[%s] Start listening on port %s.\n",
                hostname, option.port);
@@ -300,6 +309,7 @@ run(void)
     env.child_num = child_num;
     env.timer = timer;
     env.thread_pool = thread_pool;
+    env.send_barrier = &send_barrier;
 
     if (pthread_create(&sender_thread, NULL, sender_thread_func, &env) != 0){
         FATAL("pthread create failed\n");
@@ -314,7 +324,7 @@ accept_again:
     MSG("accepted connection\n");
     env.sockfd = client_sockfd;
 
-    while((sz = frame_recv(sockfd, frame)) > 0){
+    while((sz = frame_recv(client_sockfd, frame)) > 0){
         switch (frame_type(frame)) {
         case FRM_QUERY:
             query = g_strndup(frame->body.q.buf,
@@ -342,16 +352,20 @@ accept_again:
         case FRM_BYE:
             MSG("BYE\n");
             sz = 0;
+            g_async_queue_push(sender_queue, (gpointer) SENDER_BYE);
+            pthread_barrier_wait(&send_barrier);
             shutdown(client_sockfd, SHUT_RDWR);
             close(client_sockfd);
+            MSG("close connection with BYE command. Accept again.\n");
             goto accept_again;
             break;
         case FRM_QUIT:
             MSG("QUIT\n");
             exit_flag = TRUE;
             // push dummy data to wake up sender thread
-            g_async_queue_push(sender_queue, (gpointer) 0x1);
+            g_async_queue_push(sender_queue, (gpointer) SENDER_QUIT);
             pthread_barrier_wait(&barrier);
+            MSG("close connection with QUIT command.\n");
             goto quit;
             break;
         }
@@ -363,6 +377,8 @@ accept_again:
         close(sockfd);
         exit(EXIT_FAILURE);
     }
+    if (!exit_flag)
+        goto accept_again;
 quit:
     shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
@@ -387,6 +403,7 @@ query_to_phrases (const gchar *query)
     phrases = NULL;
     regex = g_regex_new("\"([^\"]+)\"", 0, 0, NULL);
 
+    g_regex_match (regex, query, 0, &match_info);
     while (g_match_info_matches (match_info))
     {
         phrase_str = g_match_info_fetch (match_info, 1);
@@ -442,12 +459,18 @@ process_query (const gchar *query, process_env_t *env)
             continue;
         last_frame = g_list_last(qres->frames);
         frames = g_list_concat(frames, qres->frames);
+        if (!frames_head) {
+            frames_head = frames;
+        }
         frames = last_frame;
         g_free(qres);
     }
     MSG("process_query: aggregated: %lf msec\n",
         (time = g_timer_elapsed(env->timer, NULL) * 1000));
-    g_async_queue_push(env->sender_queue, frames_head);
+    sender_arg_t *arg;
+    arg = g_malloc(sizeof(sender_arg_t));
+    arg->frames = frames_head;
+    g_async_queue_push(env->sender_queue, arg);
     MSG("process_query: finished\n");
 }
 
@@ -457,14 +480,30 @@ sender_thread_func (void *data)
     process_env_t *env;
     GList *frames;
     GList *frame_cell;
+    sender_arg_t *arg;
+    gssize sz;
 
     env = data;
     g_async_queue_ref(env->sender_queue);
+    sz = 0;
     for(;;) {
-        frames = g_async_queue_pop(env->sender_queue);
-        if (exit_flag)
+        arg = g_async_queue_pop(env->sender_queue);
+        if (arg == SENDER_QUIT) {
             break;
-        if (frame_send_multi_results(env->sockfd, frames) < 0){
+        } else if (arg == SENDER_BYE) {
+            pthread_barrier_wait(env->send_barrier);
+            continue;
+        }
+        frames = arg->frames;
+        g_free(arg);
+
+        sz = frame_send_multi_results(env->sockfd, frames);
+        if (sz == 0){
+            FATAL("Connection seems to be closed\n");
+        }
+        if (sz < 0 ||
+            (frames != NULL && sz != g_list_length(frames) * FRAME_SIZE) ||
+            (frames == NULL && sz != FRAME_SIZE)){
             FATAL("failed sending result: # of frames = %d\n",
                   g_list_length(frames));
         }

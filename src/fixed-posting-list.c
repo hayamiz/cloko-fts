@@ -53,7 +53,7 @@ fixed_posting_list_check_validity(const FixedPostingList *list)
 void
 fixed_posting_list_free (FixedPostingList *fplist)
 {
-    g_return_if_fail(fplist);
+    if(!fplist) return;
     g_free(fplist->pairs);
     g_free(fplist);
 }

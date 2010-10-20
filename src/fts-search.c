@@ -133,7 +133,7 @@ receiver_thread (void *ptr)
     sockfd = arg->sockfd;
 
     for (idx = 0; idx < arg->qnum; idx++){
-        if ((frames = frame_recv_result(sockfd)) != NULL) {
+        if ((frames = frame_recv_result(sockfd)) == NULL) {
             g_printerr("Insufficient result\n");
             break;
         }
@@ -216,8 +216,8 @@ process_query(const gchar *host,
     for(idx = 0; idx < qn; idx++){
         frame_send_query(sockfd, qs[idx].str);
     }
-    pthread_join(receiver, NULL);
     frame_send_bye(sockfd);
+    pthread_join(receiver, NULL);
     shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
 }

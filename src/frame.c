@@ -8,7 +8,7 @@ static __thread Frame local_frame;
 
 
 static inline ssize_t
-send_all (gint sockfd, const gchar *msg, ssize_t size)
+write_all (gint sockfd, const gchar *msg, ssize_t size)
 {
     ssize_t sz;
     ssize_t sent = 0;
@@ -32,7 +32,7 @@ send_all (gint sockfd, const gchar *msg, ssize_t size)
 }
 
 static inline ssize_t
-recv_all (gint sockfd, gchar *res, ssize_t size)
+read_all (gint sockfd, gchar *res, ssize_t size)
 {
     ssize_t sz;
     ssize_t recved = 0;
@@ -234,7 +234,7 @@ gssize  frame_send               (gint sockfd, Frame *frame)
     gssize sz;
     RawFrame *raw_frame;
     raw_frame = (RawFrame *) frame;
-    sz = send_all(sockfd, raw_frame->buf, sizeof(Frame));
+    sz = write_all(sockfd, raw_frame->buf, sizeof(Frame));
     g_return_val_if_fail(sz == sizeof(Frame), -1);
     return sz;
 }
@@ -322,22 +322,21 @@ gssize  frame_send_multi_results (gint sockfd, GList *frames)
     }
 
     total = 0;
-    for (frm_offset = 0, frame_cell = frames; frm_offset < frm_length; frm_offset += IOV_MAX){
-        loop_frm_length = 0;
-        for (frm_idx = 0; frame_cell != NULL && frm_idx < IOV_MAX;
-             frm_idx++, frame_cell = frame_cell->next) {
-            frame = frame_cell->data;
-            raw_frame = (RawFrame *) frame;
-            iov[frm_idx].iov_base = raw_frame->buf;
-            iov[frm_idx].iov_len = FRAME_SIZE;
-            loop_frm_length++;
-        }
-        sz = writev_all(sockfd, iov, loop_frm_length);
+    for (frame_cell = frames, frm_idx = 0; frm_idx < frm_length;
+         frm_idx++, frame_cell = frame_cell->next){
+        frame = frame_cell->data;
+        raw_frame = (RawFrame *) frame;
+        sz = write_all(sockfd, raw_frame->buf, FRAME_SIZE);
+        g_return_val_if_fail(sz >= 0, -1);
         total += sz;
-        g_return_val_if_fail(sz == sizeof(Frame) * loop_frm_length, -1);
+        // iov[frm_idx].iov_base = raw_frame->buf;
+        // iov[frm_idx].iov_len = FRAME_SIZE;
     }
 
-    return sz;
+    g_printerr("frame_send_multi_resutls: total = %d\n", total);
+    g_return_val_if_fail(total == FRAME_SIZE * frm_length, -1);
+
+    return total;
 }
 
 gssize  frame_send_query         (gint sockfd, const gchar *query)
@@ -384,7 +383,7 @@ gssize  frame_recv               (gint sockfd, Frame *frame)
     gssize sz;
 
     raw_frame = (RawFrame *) frame;
-    sz = recv_all(sockfd, raw_frame->buf, FRAME_SIZE);
+    sz = read_all(sockfd, raw_frame->buf, FRAME_SIZE);
     if (sz == 0) {
         return sz;
     }
@@ -406,15 +405,18 @@ GList  *frame_recv_result        (gint sockfd)
     gint frm_rest;
     guint32 loop_frm_length;
     guint32 result_num;
+    guint total;
 
     frames = NULL;
 
+    total = 0;
     frame = frame_new();
     sz = frame_recv(sockfd, frame);
     if (sz == 0) {
         return NULL;
     }
     g_return_val_if_fail(sz == FRAME_SIZE, NULL);
+    total += sz;
 
     g_return_val_if_fail(frame->type == FRM_RESULT ||
                          frame->type == FRM_LONG_RESULT_FIRST,
@@ -435,20 +437,21 @@ GList  *frame_recv_result        (gint sockfd)
     frames = g_list_append(frames, frame);
 
     last_frame = frames;
-    for (frm_rest = frm_length - 1; frm_rest > 0; frm_rest -= IOV_MAX) {
-        loop_frm_length = (frm_rest > IOV_MAX ? IOV_MAX : frm_rest);
-        for (idx = 0; idx < loop_frm_length; idx++){
-            frame = frame_new();
-            raw_frame = (RawFrame *) frame;
-            iov[idx].iov_base = raw_frame->buf;
-            iov[idx].iov_len = FRAME_SIZE;
-            last_frame = g_list_append(last_frame, frame);
-            last_frame = g_list_last(last_frame);
-        }
-        sz = readv_all(sockfd, iov, loop_frm_length);
-        g_return_val_if_fail(sz == FRAME_SIZE * loop_frm_length, NULL);
+    for (idx = 0; idx < frm_length - 1; idx++){
+        frame = frame_new();
+        raw_frame = (RawFrame *) frame;
+        sz = read_all(sockfd, raw_frame->buf, FRAME_SIZE);
+        total += sz;
+        g_return_val_if_fail(sz == FRAME_SIZE, NULL);
+        // iov[idx].iov_base = raw_frame->buf;
+        // iov[idx].iov_len = FRAME_SIZE;
+        last_frame = g_list_append(last_frame, frame);
+        last_frame = g_list_last(last_frame);
     }
+    g_printerr("frame_recv_result: total = %d\n", total);
+    g_return_val_if_fail(total == FRAME_SIZE * frm_length, NULL);
 
+    // check content
     if (g_list_length(frames) == 1){
         frame = frames->data;
         g_return_val_if_fail(frame->type == FRM_RESULT, NULL);

@@ -12,12 +12,10 @@ write_all (gint sockfd, const gchar *msg, ssize_t size)
 {
     ssize_t sz;
     ssize_t sent = 0;
-    g_printerr("write_all(%d, %p, %d)\n",
-               sockfd, msg, size);
+    // g_printerr("write_all(%d, %p, %d)\n", sockfd, msg, size);
     while(sent < size){
         if ((sz = write(sockfd, msg, size - sent)) == -1) {
-            g_printerr("write(2) returned -1: errno = %d\n",
-                       errno);
+            g_printerr("write(2) returned -1: errno = %d\n", errno);
             return sz;
         } else if (sz == 0) {
             break;
@@ -26,8 +24,7 @@ write_all (gint sockfd, const gchar *msg, ssize_t size)
         msg += sz;
     }
 
-    g_printerr("write_all: return %d\n",
-               sent);
+    // g_printerr("write_all: return %d\n", sent);
     return sent;
 }
 
@@ -36,12 +33,10 @@ read_all (gint sockfd, gchar *res, ssize_t size)
 {
     ssize_t sz;
     ssize_t recved = 0;
-    g_printerr("read_all(%d, %p, %d)\n",
-               sockfd, res, size);
+    // g_printerr("read_all(%d, %p, %d)\n", sockfd, res, size);
     while(recved < size){
         if ((sz = read(sockfd, res, size - recved)) == -1){
-            g_printerr("read(2) returned -1: errno %d\n",
-                       errno);
+            g_printerr("read(2) returned -1: errno %d\n", errno);
             return sz;
         } else if (sz == 0){
             break;
@@ -49,8 +44,7 @@ read_all (gint sockfd, gchar *res, ssize_t size)
         recved += sz;
         res += sz;
     }
-    g_printerr("read_all: return %d\n",
-               recved);
+    // g_printerr("read_all: return %d\n", recved);
 
     return recved;
 }
@@ -62,16 +56,14 @@ writev_all(gint sockfd, struct iovec *iov, int cnt)
     gssize total;
     guint offset;
     gssize sz;
-    g_printerr("writev_all(%d, %p, %d)\n",
-               sockfd, iov, cnt);
+    // g_printerr("writev_all(%d, %p, %d)\n", sockfd, iov, cnt);
 
     total = 0;
     offset = 0;
     while (total < cnt * FRAME_SIZE) {
         sz = writev(sockfd, iov, (cnt - offset));
         if (sz == -1){
-            g_printerr("writev(2) returned -1: errno %d\n",
-                       errno);
+            g_printerr("writev(2) returned -1: errno %d\n", errno);
         }
         // g_return_val_if_fail(sz % FRAME_SIZE == 0, -1);
         total += sz;
@@ -88,8 +80,7 @@ writev_all(gint sockfd, struct iovec *iov, int cnt)
         }
     }
 
-    g_printerr("writev_all:return %d\n",
-               total);
+    // g_printerr("writev_all:return %d\n",total);
 
     return total;
 }
@@ -102,16 +93,14 @@ readv_all(gint sockfd, struct iovec *iov, int cnt)
     guint offset;
     // guint inner_offset;
     gssize sz;
-    g_printerr("readv_all(%d, %p, %d)\n",
-               sockfd, iov, cnt);
+    // g_printerr("readv_all(%d, %p, %d)\n", sockfd, iov, cnt);
 
     total = 0;
     offset = 0;
     while (total < cnt * FRAME_SIZE) {
         sz = readv(sockfd, iov + offset, (cnt - offset));
         if (sz == -1){
-            g_printerr("readv(2) returned -1: errno %d\n",
-                       errno);
+            g_printerr("readv(2) returned -1: errno %d\n", errno);
         }
         // g_return_val_if_fail(sz % FRAME_SIZE == 0, -1);
         total += sz;
@@ -128,8 +117,7 @@ readv_all(gint sockfd, struct iovec *iov, int cnt)
         }
     }
 
-    g_printerr("readv_all:return %d\n",
-               total);
+    // g_printerr("readv_all:return %d\n", total);
 
     return total;
 }

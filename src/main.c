@@ -362,7 +362,7 @@ accept_again:
             pthread_barrier_wait(&send_barrier);
             shutdown(client_sockfd, SHUT_RDWR);
             close(client_sockfd);
-            MSG("close connection with BYE command. Accept again.\n");
+            NOTICE("close connection with BYE command. Accept again.\n");
             goto accept_again;
             break;
         case FRM_QUIT:

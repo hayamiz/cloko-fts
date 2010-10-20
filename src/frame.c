@@ -12,8 +12,12 @@ send_all (gint sockfd, const gchar *msg, ssize_t size)
 {
     ssize_t sz;
     ssize_t sent = 0;
+    g_printerr("write_all(%d, %p, %d)\n",
+               sockfd, msg, size);
     while(sent < size){
-        if ((sz = write(sockfd, msg, size)) == -1) {
+        if ((sz = write(sockfd, msg, size - sent)) == -1) {
+            g_printerr("write(2) returned -1: errno = %d\n",
+                       errno);
             return sz;
         } else if (sz == 0) {
             break;
@@ -22,6 +26,8 @@ send_all (gint sockfd, const gchar *msg, ssize_t size)
         msg += sz;
     }
 
+    g_printerr("write_all: return %d\n",
+               sent);
     return sent;
 }
 
@@ -30,8 +36,12 @@ recv_all (gint sockfd, gchar *res, ssize_t size)
 {
     ssize_t sz;
     ssize_t recved = 0;
+    g_printerr("read_all(%d, %p, %d)\n",
+               sockfd, res, size);
     while(recved < size){
-        if ((sz = read(sockfd, res, size)) == -1){
+        if ((sz = read(sockfd, res, size - recved)) == -1){
+            g_printerr("read(2) returned -1: errno %d\n",
+                       errno);
             return sz;
         } else if (sz == 0){
             break;
@@ -39,6 +49,8 @@ recv_all (gint sockfd, gchar *res, ssize_t size)
         recved += sz;
         res += sz;
     }
+    g_printerr("read_all: return %d\n",
+               recved);
 
     return recved;
 }
@@ -49,17 +61,35 @@ writev_all(gint sockfd, struct iovec *iov, int cnt)
 {
     gssize total;
     guint offset;
-    // guint inner_offset;
     gssize sz;
+    g_printerr("writev_all(%d, %p, %d)\n",
+               sockfd, iov, cnt);
 
     total = 0;
     offset = 0;
     while (total < cnt * FRAME_SIZE) {
-        sz = writev(sockfd, iov + offset, (cnt - offset));
-        g_return_val_if_fail(sz % FRAME_SIZE == 0, -1);
+        sz = writev(sockfd, iov, (cnt - offset));
+        if (sz == -1){
+            g_printerr("writev(2) returned -1: errno %d\n",
+                       errno);
+        }
+        // g_return_val_if_fail(sz % FRAME_SIZE == 0, -1);
         total += sz;
-        offset += (sz / FRAME_SIZE);
+        while(sz > 0){
+            if (sz > iov[0].iov_len) {
+                sz -= iov[0].iov_len;
+                iov++;
+                offset++;
+            } else {
+                iov[0].iov_base += sz;
+                iov[0].iov_len -= sz;
+                sz = 0;
+            }
+        }
     }
+
+    g_printerr("writev_all:return %d\n",
+               total);
 
     return total;
 }
@@ -72,15 +102,34 @@ readv_all(gint sockfd, struct iovec *iov, int cnt)
     guint offset;
     // guint inner_offset;
     gssize sz;
+    g_printerr("readv_all(%d, %p, %d)\n",
+               sockfd, iov, cnt);
 
     total = 0;
     offset = 0;
     while (total < cnt * FRAME_SIZE) {
         sz = readv(sockfd, iov + offset, (cnt - offset));
-        g_return_val_if_fail(sz % FRAME_SIZE == 0, -1);
+        if (sz == -1){
+            g_printerr("readv(2) returned -1: errno %d\n",
+                       errno);
+        }
+        // g_return_val_if_fail(sz % FRAME_SIZE == 0, -1);
         total += sz;
-        offset += (sz / FRAME_SIZE);
+        while(sz > 0){
+            if (sz > iov[0].iov_len) {
+                sz -= iov[0].iov_len;
+                iov++;
+                offset++;
+            } else {
+                iov[0].iov_base += sz;
+                iov[0].iov_len -= sz;
+                sz = 0;
+            }
+        }
     }
+
+    g_printerr("readv_all:return %d\n",
+               total);
 
     return total;
 }
@@ -293,23 +342,31 @@ gssize  frame_send_multi_results (gint sockfd, GList *frames)
 
 gssize  frame_send_query         (gint sockfd, const gchar *query)
 {
-    bzero(&local_frame, sizeof(Frame));
+    Frame *frame;
+    gssize sz;
     g_return_val_if_fail(strlen(query) <= FRAME_CONTENT_SIZE, -1);
-    local_frame.type = FRM_QUERY;
-    local_frame.content_length = strlen(query);
-    local_frame.body.q.length = local_frame.content_length;
-    memcpy(&local_frame.body.q.buf, query, local_frame.content_length);
-
-    return frame_send(sockfd, &local_frame);
+    frame = frame_new();
+    bzero(frame, sizeof(Frame));
+    frame->type = FRM_QUERY;
+    frame->content_length = strlen(query);
+    frame->body.q.length = frame->content_length;
+    memcpy(&frame->body.q.buf, query, frame->content_length);
+    sz = frame_send(sockfd, frame);
+    frame_free(frame);
+    return sz;
 }
 
 gssize  frame_send_bye         (gint sockfd)
 {
-    bzero(&local_frame, sizeof(Frame));
-    local_frame.type = FRM_BYE;
-    local_frame.content_length = 0;
-
-    return frame_send(sockfd, &local_frame);
+    Frame *frame;
+    gssize sz;
+    frame = frame_new();
+    bzero(frame, sizeof(Frame));
+    frame->type = FRM_BYE;
+    frame->content_length = 0;
+    sz = frame_send(sockfd, frame);
+    frame_free(frame);
+    return sz;
 }
 
 gssize  frame_send_quit         (gint sockfd)

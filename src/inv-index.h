@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <limits.h>
+#include <errno.h>
 
 #include <bloom-filter.h>
 #include <thread-pool.h>

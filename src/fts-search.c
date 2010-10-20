@@ -113,19 +113,31 @@ recv_all (gint sockfd, gchar *res, ssize_t size)
     return recved;
 }
 
+struct recv_arg {
+    gint sockfd;
+    guint qnum;
+};
+
 void *
 receiver_thread (void *ptr)
 {
+    struct recv_arg *arg = ptr;
     gint sockfd;
     GList *frames;
     GList *frame_cell;
     Frame *frame;
     guint qid;
+    guint idx;
 
     qid = 1;
-    sockfd = (gint)(gint64) ptr;
+    sockfd = arg->sockfd;
 
-    while((frames = frame_recv_result(sockfd)) != NULL) {
+    for (idx = 0; idx < arg->qnum; idx++){
+        if ((frames = frame_recv_result(sockfd)) != NULL) {
+            g_printerr("Insufficient result\n");
+            break;
+        }
+
         frame = frames->data;
         printf("## %d %d\n", qid, frame->extra_field);
         for (frame_cell = frames; frame_cell != NULL; frame_cell = frame_cell->next){
@@ -192,7 +204,10 @@ process_query(const gchar *host,
         return;
     }
 
-    if (pthread_create(&receiver, NULL, receiver_thread, (void *)(gint64) sockfd) != 0){
+    struct recv_arg arg;
+    arg.qnum = qn;
+    arg.sockfd = sockfd;
+    if (pthread_create(&receiver, NULL, receiver_thread, &arg) != 0){
         g_printerr("failed to make receiver thread: errno = %d\n",
                    errno);
         exit(EXIT_FAILURE);
@@ -201,8 +216,8 @@ process_query(const gchar *host,
     for(idx = 0; idx < qn; idx++){
         frame_send_query(sockfd, qs[idx].str);
     }
-    frame_send_bye(sockfd);
     pthread_join(receiver, NULL);
+    frame_send_bye(sockfd);
     shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
 }

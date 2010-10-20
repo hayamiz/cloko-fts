@@ -1,7 +1,7 @@
 
 #include <inv-index.h>
 
-#define RECV_BLOCK_SIZE 8192
+#define RECV_BLOCK_SIZE (8192/2)
 
 #include <glib.h>
 #include <stdlib.h>
@@ -47,6 +47,7 @@ static struct {
 
 static GOptionEntry entries[] =
 {
+    { "verbose", 'v', 0, G_OPTION_ARG_NONE, &option.verbose, "send QUIT command", NULL },
     { "quit", 'q', 0, G_OPTION_ARG_NONE, &option.quit, "send QUIT command", NULL },
     { NULL }
 };
@@ -57,7 +58,7 @@ parse_args (gint *argc, gchar ***argv)
     GError *error = NULL;
     GOptionContext *context;
 
-    option.verbose = TRUE;
+    option.verbose = FALSE;
     option.output = stdout;
     option.quit = FALSE;
 
@@ -149,10 +150,12 @@ process_query(const gchar *host,
     pthread_t receiver;
     guint idx;
 
-    for(idx = 0; idx < qn; idx++){
-        fprintf(stderr, "## %d %s\n", idx + 1, qs[idx].str);
+    if (option.verbose){
+        for(idx = 0; idx < qn; idx++){
+            fprintf(stderr, "## %d %s\n", idx + 1, qs[idx].str);
+        }
+        fprintf(stderr, "#####################################\n");
     }
-    fprintf(stderr, "#####################################\n");
 
     bzero(&hints, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
@@ -183,6 +186,7 @@ process_query(const gchar *host,
 
     if (option.quit){
         frame_send_quit(sockfd);
+        g_printerr("sent QUIT command\n");
         shutdown(sockfd, SHUT_RDWR);
         close(sockfd);
         return;
@@ -230,30 +234,32 @@ main (gint argc, gchar **argv)
     GString *input;
     gchar buf[4096];
     size_t sz;
-    input = g_string_new("");
-    while((sz = fread(buf, sizeof(gchar), 4096, stdin)) != 0){
-        g_string_append_len(input, buf, sz);
-    }
-
     guint qnum;
     gchar *endptr;
     Query *queries;
     guint qid;
     const gchar *str;
     gchar *ptr;
-    qnum = 0;
-    queries = NULL;
-    endptr = input->str;
 
-    while((qid = strtol(endptr, &endptr, 10)) > 0){
-        endptr = index(endptr, '"');
-        ptr = index(endptr, '\n');
+    if (!option.quit){
+        input = g_string_new("");
+        while((sz = fread(buf, sizeof(gchar), 4096, stdin)) != 0){
+            g_string_append_len(input, buf, sz);
+        }
+        qnum = 0;
+        queries = NULL;
+        endptr = input->str;
 
-        qnum++;
-        queries = g_realloc(queries, sizeof(Query) * qnum);
-        queries[qnum-1].id = qid;
-        queries[qnum-1].str = g_strndup(endptr, ptr - endptr);
-        endptr = ptr + 1;
+        while((qid = strtol(endptr, &endptr, 10)) > 0){
+            endptr = index(endptr, '"');
+            ptr = index(endptr, '\n');
+
+            qnum++;
+            queries = g_realloc(queries, sizeof(Query) * qnum);
+            queries[qnum-1].id = qid;
+            queries[qnum-1].str = g_strndup(endptr, ptr - endptr);
+            endptr = ptr + 1;
+        }
     }
 
     process_query(argv[1], queries, qnum);

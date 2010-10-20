@@ -6,6 +6,85 @@
 static __thread struct iovec iov[IOV_MAX];
 static __thread Frame local_frame;
 
+
+static inline ssize_t
+send_all (gint sockfd, const gchar *msg, ssize_t size)
+{
+    ssize_t sz;
+    ssize_t sent = 0;
+    while(sent < size){
+        if ((sz = write(sockfd, msg, size)) == -1) {
+            return sz;
+        } else if (sz == 0) {
+            break;
+        }
+        sent += sz;
+        msg += sz;
+    }
+
+    return sent;
+}
+
+static inline ssize_t
+recv_all (gint sockfd, gchar *res, ssize_t size)
+{
+    ssize_t sz;
+    ssize_t recved = 0;
+    while(recved < size){
+        if ((sz = read(sockfd, res, size)) == -1){
+            return sz;
+        } else if (sz == 0){
+            break;
+        }
+        recved += sz;
+        res += sz;
+    }
+
+    return recved;
+}
+
+
+static gssize
+writev_all(gint sockfd, struct iovec *iov, int cnt)
+{
+    gssize total;
+    guint offset;
+    // guint inner_offset;
+    gssize sz;
+
+    total = 0;
+    offset = 0;
+    while (total < cnt * FRAME_SIZE) {
+        sz = writev(sockfd, iov + offset, (cnt - offset));
+        g_return_val_if_fail(sz % FRAME_SIZE == 0, -1);
+        total += sz;
+        offset += (sz / FRAME_SIZE);
+    }
+
+    return total;
+}
+
+
+static gssize
+readv_all(gint sockfd, struct iovec *iov, int cnt)
+{
+    gssize total;
+    guint offset;
+    // guint inner_offset;
+    gssize sz;
+
+    total = 0;
+    offset = 0;
+    while (total < cnt * FRAME_SIZE) {
+        sz = readv(sockfd, iov + offset, (cnt - offset));
+        g_return_val_if_fail(sz % FRAME_SIZE == 0, -1);
+        total += sz;
+        offset += (sz / FRAME_SIZE);
+    }
+
+    return total;
+}
+
 Frame *
 frame_new               (void)
 {
@@ -106,7 +185,7 @@ gssize  frame_send               (gint sockfd, Frame *frame)
     gssize sz;
     RawFrame *raw_frame;
     raw_frame = (RawFrame *) frame;
-    sz = send(sockfd, raw_frame->buf, sizeof(Frame), 0);
+    sz = send_all(sockfd, raw_frame->buf, sizeof(Frame));
     g_return_val_if_fail(sz == sizeof(Frame), -1);
     return sz;
 }
@@ -178,6 +257,7 @@ gssize  frame_send_multi_results (gint sockfd, GList *frames)
         frame->extra_field = result_num;
         switch (frame->type){
         case FRM_RESULT:
+            frame->type = FRM_LONG_RESULT_REST;
             g_return_val_if_fail(frame->content_length == frame->body.r.length, -1);
             frame->content_length--; // cut off trailing null-char
             frame->body.lrr.length = frame->content_length;
@@ -203,7 +283,7 @@ gssize  frame_send_multi_results (gint sockfd, GList *frames)
             iov[frm_idx].iov_len = FRAME_SIZE;
             loop_frm_length++;
         }
-        sz = writev(sockfd, iov, loop_frm_length);
+        sz = writev_all(sockfd, iov, loop_frm_length);
         total += sz;
         g_return_val_if_fail(sz == sizeof(Frame) * loop_frm_length, -1);
     }
@@ -247,7 +327,7 @@ gssize  frame_recv               (gint sockfd, Frame *frame)
     gssize sz;
 
     raw_frame = (RawFrame *) frame;
-    sz = recv(sockfd, raw_frame->buf, FRAME_SIZE, 0);
+    sz = recv_all(sockfd, raw_frame->buf, FRAME_SIZE);
     if (sz == 0) {
         return sz;
     }
@@ -308,14 +388,19 @@ GList  *frame_recv_result        (gint sockfd)
             last_frame = g_list_append(last_frame, frame);
             last_frame = g_list_last(last_frame);
         }
-        sz = readv(sockfd, iov, loop_frm_length);
+        sz = readv_all(sockfd, iov, loop_frm_length);
         g_return_val_if_fail(sz == FRAME_SIZE * loop_frm_length, NULL);
     }
 
-    for (frame_cell = frames->next; frame_cell != NULL; frame_cell = frame_cell->next){
-        frame = frame_cell->data;
-        g_return_val_if_fail(frame->type == FRM_LONG_RESULT_REST, NULL);
-        g_return_val_if_fail(frame->content_length == frame->body.lrr.length, NULL);
+    if (g_list_length(frames) == 1){
+        frame = frames->data;
+        g_return_val_if_fail(frame->type == FRM_RESULT, NULL);
+    } else {
+        for (frame_cell = frames->next; frame_cell != NULL; frame_cell = frame_cell->next){
+            frame = frame_cell->data;
+            g_return_val_if_fail(frame->type == FRM_LONG_RESULT_REST, NULL);
+            g_return_val_if_fail(frame->content_length == frame->body.lrr.length, NULL);
+        }
     }
 
     return frames;

@@ -138,8 +138,8 @@ typedef struct _child_arg_t {
     const gchar *child_hostname;
     gint sockfd;
     pthread_barrier_t *barrier;
-    gchar **query;
     GAsyncQueue *queue;
+    GAsyncQueue *qqueue;
 } child_arg_t;
 
 typedef struct _sender_arg {
@@ -230,6 +230,7 @@ run(void)
     guint child_num = 0;
     gchar **child_hostnames = NULL;
     gint i;
+    GAsyncQueue *qqueue = g_async_queue_new();
     GAsyncQueue *queue = g_async_queue_new();
     GAsyncQueue *sender_queue = g_async_queue_new();
     gchar *query;
@@ -249,8 +250,8 @@ run(void)
             child_arg_t *arg = &child_thread_args[i];
             arg->id = i;
             arg->child_hostname = child_hostnames[i];
-            arg->query = &query;
-            arg->queue = queue;;
+            arg->queue = queue;
+            arg->qqueue = qqueue;
             arg->barrier = &barrier;
             pthread_create(&child_threads[i], NULL, child_downstreamer, arg);
         }
@@ -330,9 +331,14 @@ accept_again:
             query = g_strndup(frame->body.q.buf,
                               frame->body.q.length);
             // TODO: this 'query' causes memory leaks
-            pthread_barrier_wait(&barrier);
+            // pthread_barrier_wait(&barrier);
+            guint idx;
+            for (idx = 0; idx < child_num; idx++) {
+                g_async_queue_push(qqueue, g_strdup(query));
+            }
 
             process_query(query, &env);
+            g_free(query);
             break;
         case FRM_LONG_QUERY_FIRST:
             NOT_IMPLEMENTED();
@@ -364,7 +370,8 @@ accept_again:
             exit_flag = TRUE;
             // push dummy data to wake up sender thread
             g_async_queue_push(sender_queue, (gpointer) SENDER_QUIT);
-            pthread_barrier_wait(&barrier);
+            g_async_queue_push(qqueue, (gpointer) SENDER_QUIT);
+            // pthread_barrier_wait(&barrier);
             MSG("close connection with QUIT command.\n");
             goto quit;
             break;
@@ -430,8 +437,10 @@ process_query (const gchar *query, process_env_t *env)
     GList *phrases;
 
     GList *frames;
+    GList *frame_cell;
     GList *frames_head;
     GList *last_frame;
+    Frame *frame;
 
     phrases = NULL;
     base_list = NULL;
@@ -465,6 +474,17 @@ process_query (const gchar *query, process_env_t *env)
         frames = last_frame;
         g_free(qres);
     }
+    // remove 0 hit frames
+    for (frame_cell = frames_head; frame_cell != NULL; frame_cell = frame_cell->next) {
+        frame = frame_cell->data;
+        if (frame->type == FRM_RESULT && frame->extra_field == 0){
+            if (frames_head == frame_cell)
+                frames_head = frame_cell = g_list_remove_link(frame_cell, frame_cell);
+            else
+                frame_cell = g_list_remove_link(frame_cell, frame_cell);
+            if (! frame_cell) break;
+        }
+    }
     MSG("process_query: aggregated: %lf msec\n",
         (time = g_timer_elapsed(env->timer, NULL) * 1000));
     sender_arg_t *arg;
@@ -489,8 +509,10 @@ sender_thread_func (void *data)
     for(;;) {
         arg = g_async_queue_pop(env->sender_queue);
         if (arg == SENDER_QUIT) {
+            MSG("sender catched QUIT command\n");
             break;
         } else if (arg == SENDER_BYE) {
+            MSG("sender catched BYE command\n");
             pthread_barrier_wait(env->send_barrier);
             continue;
         }
@@ -563,6 +585,7 @@ child_downstreamer (void *data)
     gint retry;
     pthread_t upstreamer;
     Frame quit_frame;
+    gchar *query;
 
     frame_make_quit(&quit_frame);
     child_hostname = g_string_new("");
@@ -571,6 +594,7 @@ child_downstreamer (void *data)
     bzero(&hints, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
+    g_async_queue_ref(arg->qqueue);
 
     if (getaddrinfo(child_hostname->str, option.port, &hints, &res) != 0){
         FATAL("getaddrinfo failed: hostname = %s\n", child_hostname->str);
@@ -619,7 +643,7 @@ reconnect:
 
     for(;;){
         // wait for QUERY or QUIT command arrival
-        pthread_barrier_wait(arg->barrier);
+        query = g_async_queue_pop(arg->qqueue);
         if (exit_flag) {
             if (frame_send (sockfd, &quit_frame) < 0){
                 FATAL("failed sending QUIT command to %s\n",
@@ -630,11 +654,12 @@ reconnect:
             shutdown(sockfd, SHUT_RDWR);
             close(sockfd);
             freeaddrinfo(res);
+            g_async_queue_unref(arg->qqueue);
             return NULL;
         }
 
         // query arrived
-        if (frame_send_query(sockfd, *arg->query) < 0){
+        if (frame_send_query(sockfd, query) < 0){
             shutdown(sockfd, SHUT_RDWR);
             pthread_cancel(upstreamer);
             NOTICE("failed sending query to %d\n",
@@ -642,6 +667,7 @@ reconnect:
             pthread_join(upstreamer, NULL);
             goto reconnect;
         }
+        g_free(query);
     }
 }
 

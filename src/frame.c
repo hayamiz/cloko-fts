@@ -273,7 +273,7 @@ gssize  frame_send_multi_results (gint sockfd, GList *frames)
     case FRM_RESULT:
         frame->type = (guint32) FRM_LONG_RESULT_FIRST;
         g_return_val_if_fail(frame->content_length == frame->body.r.length, -1);
-        frame->content_length = frame->body.r.length - 1; // cut off trailing null-char
+        frame->content_length = frame->body.r.length;
         frame->body.lrf.frm_length = frm_length;
         break;
     case FRM_LONG_RESULT_FIRST:
@@ -296,7 +296,7 @@ gssize  frame_send_multi_results (gint sockfd, GList *frames)
         case FRM_RESULT:
             frame->type = FRM_LONG_RESULT_REST;
             g_return_val_if_fail(frame->content_length == frame->body.r.length, -1);
-            frame->content_length--; // cut off trailing null-char
+            frame->content_length;
             frame->body.lrr.length = frame->content_length;
             break;
         case FRM_LONG_RESULT_FIRST:
@@ -321,7 +321,7 @@ gssize  frame_send_multi_results (gint sockfd, GList *frames)
         // iov[frm_idx].iov_len = FRAME_SIZE;
     }
 
-    g_printerr("frame_send_multi_resutls: total = %d\n", total);
+    // g_printerr("frame_send_multi_resutls: total = %d\n", total);
     g_return_val_if_fail(total == FRAME_SIZE * frm_length, -1);
 
     return total;
@@ -436,7 +436,7 @@ GList  *frame_recv_result        (gint sockfd)
         last_frame = g_list_append(last_frame, frame);
         last_frame = g_list_last(last_frame);
     }
-    g_printerr("frame_recv_result: total = %d\n", total);
+    // g_printerr("frame_recv_result: total = %d\n", total);
     g_return_val_if_fail(total == FRAME_SIZE * frm_length, NULL);
 
     // check content

@@ -5,9 +5,12 @@ static void
 fixed_index_new_ghash_func(gpointer key, gpointer val, gpointer user_data)
 {
     GHashTable *table = (GHashTable *) user_data;
+    FixedPostingList *fplist;
+    fplist = fixed_posting_list_new((PostingList *) val);
+    fplist->skiplist = fixed_posting_list_to_skiplist(fplist);
     g_hash_table_insert(table,
                         g_strdup((const gchar *) key),
-                        fixed_posting_list_new((PostingList *) val));
+                        fplist);
 }
 
 /* term (key in hash table) is strdup-ed. */

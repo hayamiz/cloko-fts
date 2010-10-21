@@ -25,7 +25,7 @@ fixed_posting_list_new (PostingList *list)
     fplist = g_malloc(sizeof(FixedPostingList));
     fplist->size = posting_list_size(list);
     fplist->pairs = g_malloc(sizeof(PostingPair) * fplist->size);
-    fplist->filter = NULL; // bloom_filter_new(NULL, 0.01, fplist->size);
+    fplist->skiplist = NULL; // bloom_filter_new(NULL, 0.01, fplist->size);
 
     struct fixed_posting_list_new_rec rec;
     rec.idx = 0;
@@ -178,9 +178,27 @@ fixed_posting_list_select_successor (const FixedPostingList *base_list,
     fplist = g_malloc(sizeof(FixedPostingList));
     fplist->size = size;
     fplist->pairs = pairs;
-    fplist->filter = NULL;
+    fplist->skiplist = NULL;
 
     return fplist;
+}
+
+
+FixedPostingList *
+fixed_posting_list_select_successor_with_skiplist (const FixedPostingList *base_list,
+                                                   const FixedPostingList *succ_list,
+                                                   guint offset)
+{
+    if (!base_list) return NULL;
+    if (!succ_list) return NULL;
+
+    if (!base_list->skiplist || !succ_list->skiplist){
+        return fixed_posting_list_select_successor(base_list, succ_list, offset);
+    }
+
+    g_return_val_if_reached(NULL);
+
+    return NULL;
 }
 
 FixedPostingList *
@@ -305,7 +323,7 @@ fixed_posting_list_from_skiplist_intersect (Skiplist *list1, Skiplist *list2)
     fplist = g_malloc(sizeof(FixedPostingList));
     fplist->size = 0;
     fplist->pairs = NULL;
-    fplist->filter = NULL;
+    fplist->skiplist = NULL;
 
     node1 = list1->head->skips[0];
     node2 = list2->head->skips[0];

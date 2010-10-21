@@ -1,5 +1,5 @@
-# lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
-noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
+lib_LTLIBRARIES = libinv_index.la libbloom_filter.la
+# noinst_LTLIBRARIES = libinv_index.la libbloom_filter.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
 
@@ -15,7 +15,8 @@ libinv_index_la_SOURCES =			\
 	fixed-index.c				\
 	phrase.c				\
 	thread-pool.c				\
-	frame.c
+	frame.c					\
+	skiplist.c
 
 libbloom_filter_la_SOURCES =			\
 	bloom-filter.c

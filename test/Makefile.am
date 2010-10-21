@@ -8,7 +8,8 @@ noinst_LTLIBRARIES =				\
 	test_posting_list.la			\
 	test_search.la				\
 	test_phrase.la				\
-	test_frame.la
+	test_frame.la				\
+	test_skiplist.la
 #	test_bloom_filter.la
 
 AM_CFLAGS = $(GLIB_CFLAGS)
@@ -25,6 +26,7 @@ test_fixed_index_la_SOURCES = test-fixed-index.c
 test_search_la_SOURCES = test-search.c
 test_phrase_la_SOURCES = test-phrase.c
 test_frame_la_SOURCES = test-frame.c
+test_skiplist_la_SOURCES = test-skiplist.c
 
 INCLUDES = $(CUTTER_CFLAGS) -I$(top_srcdir)/src
 LIBS =						\

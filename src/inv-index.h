@@ -12,6 +12,7 @@
 
 #include <bloom-filter.h>
 #include <thread-pool.h>
+#include <skiplist.h>
 
 struct _DocumentSet;
 
@@ -140,6 +141,9 @@ FixedPostingList *fixed_posting_list_select_successor (const FixedPostingList *b
 FixedPostingList *fixed_posting_list_doc_compact (const FixedPostingList *fplist1);
 FixedPostingList *fixed_posting_list_doc_intersect (const FixedPostingList *fplist1,
                                                     const FixedPostingList *fplist2);
+Skiplist         *fixed_posting_list_to_skiplist (FixedPostingList *fplist);
+FixedPostingList *fixed_posting_list_from_skiplist_intersect (Skiplist *list1, Skiplist *list2);
+
 
 FixedIndex       *fixed_index_new        (InvIndex *inv_index);
 void              fixed_index_free       (FixedIndex *fixed_index);

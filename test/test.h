@@ -8,6 +8,7 @@
 #include <inv-index.h>
 #include <bloom-filter.h>
 #include <thread-pool.h>
+#include <skiplist.h>
 
 #define take_fplist(fplist)                                             \
     ((FixedPostingList *) cut_take((fplist),                            \

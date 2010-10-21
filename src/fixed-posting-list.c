@@ -267,3 +267,44 @@ fixed_posting_list_doc_intersect (const FixedPostingList *fplist1,
 
     return fplist;
 }
+
+Skiplist *
+fixed_posting_list_to_skiplist (FixedPostingList *fplist)
+{
+    Skiplist *sl;
+    guint idx;
+    guint64 *p;
+    gboolean ret;
+    sl = skiplist_new();
+
+    for (idx = 0; idx < fplist->size; idx++) {
+        p = (gint64 *) &fplist->pairs[idx];
+        ret = skiplist_insert(sl, *p);
+        g_return_val_if_fail(ret, NULL);
+    }
+
+    return sl;
+}
+
+FixedPostingList *
+fixed_posting_list_from_skiplist_intersect (Skiplist *list1, Skiplist *list2)
+{
+    FixedPostingList *fplist;
+    Skipnode *pred1, *pred2;
+    gint level;
+
+    g_return_val_if_fail(list1, NULL);
+    g_return_val_if_fail(list2, NULL);
+
+    fplist = g_malloc(sizeof(FixedPostingList));
+    fplist->size == 0;
+    fplist->pairs = NULL;
+    fplist->filter = NULL;
+
+    pred1 = list1->head;
+    pred2 = list2->head;
+
+    g_return_val_if_reached(NULL);
+
+    return NULL;
+}

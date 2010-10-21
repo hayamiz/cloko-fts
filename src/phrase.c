@@ -21,7 +21,7 @@ phrase_from_string (const gchar *str)
     gchar *term;
     Phrase *phrase;
 
-    g_return_val_if_fail(str, NULL);
+    g_return_val_if_fail(str != NULL, NULL);
 
     tok = tokenizer_new(str);
     phrase = phrase_new();

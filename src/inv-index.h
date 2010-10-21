@@ -63,7 +63,7 @@ typedef struct _InvIndex {
 typedef struct _FixedPostingList {
     guint size;
     PostingPair *pairs;
-    BloomFilter *filter;
+    Skiplist *skiplist;
 } FixedPostingList;
 
 typedef struct _FixedIndex {

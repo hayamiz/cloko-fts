@@ -290,21 +290,52 @@ FixedPostingList *
 fixed_posting_list_from_skiplist_intersect (Skiplist *list1, Skiplist *list2)
 {
     FixedPostingList *fplist;
-    Skipnode *pred1, *pred2;
+    guint64 *p;
+    Skipnode *node1, *node2;
+    Skipnode **smaller, **bigger;
     gint level;
 
     g_return_val_if_fail(list1, NULL);
     g_return_val_if_fail(list2, NULL);
 
+    if (list1->length == 0 || list2->length == 0){
+        return NULL;
+    }
+
     fplist = g_malloc(sizeof(FixedPostingList));
-    fplist->size == 0;
+    fplist->size = 0;
     fplist->pairs = NULL;
     fplist->filter = NULL;
 
-    pred1 = list1->head;
-    pred2 = list2->head;
+    node1 = list1->head->skips[0];
+    node2 = list2->head->skips[0];
 
-    g_return_val_if_reached(NULL);
+    while(node1 != NULL && node2 != NULL){
+        if (node1->data == node2->data) {
+            fplist->size++;
+            fplist->pairs = g_realloc(fplist->pairs, sizeof(PostingPair) * fplist->size);
+            p = (gint64 *) &fplist->pairs[fplist->size - 1];
+            *p = node1->data;
+            node1 = node1->skips[0];
+            node2 = node2->skips[0];
+        } else if (node1->data < node2->data) {
+            if (node1->skips[0] == NULL) break;
+            for (level = node1->level; level >= 0; level--) {
+                if (node1->skips[level]->data <= node2->data) {
+                    node1 = node1->skips[level];
+                    break;
+                }
+            }
+        } else { // if (node1->data < node2->data)
+            if (node2->skips[0] == NULL) break;
+            for (level = node2->level; level >= 0; level--) {
+                if (node2->skips[level]->data <= node1->data) {
+                    node2 = node2->skips[level];
+                    break;
+                }
+            }
+        }
+    }
 
-    return NULL;
+    return fplist;
 }

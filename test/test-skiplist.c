@@ -77,6 +77,8 @@ test_skiplist_length (void)
     skiplist_insert(list, 29);
 
     cut_assert_equal_uint(8, skiplist_length(list));
+
+    cut_assert_equal_uint(2, list->head->skips[0]->data);
 }
 
 void
@@ -119,6 +121,10 @@ test_skiplist_intersect (void)
     FixedPostingList *fplist;
 
     list1 = skiplist_new();
+    list2 = skiplist_new();
+
+    cut_assert_null(fixed_posting_list_from_skiplist_intersect(list1, list2));
+
     skiplist_insert(list1, 9);
     skiplist_insert(list1, 8);
     skiplist_insert(list1, 100);
@@ -130,16 +136,17 @@ test_skiplist_intersect (void)
     skiplist_insert(list1, 101);
     cut_assert_not_null(list1);
 
-    list2 = skiplist_new();
-    skiplist_insert(list1, 7);
-    skiplist_insert(list1, 8);
-    skiplist_insert(list1, 101);
-    skiplist_insert(list1, 2);
-    skiplist_insert(list1, 120);
-    skiplist_insert(list1, 5);
-    skiplist_insert(list1, 58);
-    skiplist_insert(list1, 2);
-    skiplist_insert(list1, 1);
+    cut_assert_null(fixed_posting_list_from_skiplist_intersect(list1, list2));
+
+    skiplist_insert(list2, 7);
+    skiplist_insert(list2, 8);
+    skiplist_insert(list2, 101);
+    skiplist_insert(list2, 2);
+    skiplist_insert(list2, 120);
+    skiplist_insert(list2, 5);
+    skiplist_insert(list2, 58);
+    skiplist_insert(list2, 2);
+    skiplist_insert(list2, 1);
     cut_assert_not_null(list2);
 
     fplist = fixed_posting_list_from_skiplist_intersect(list1, list2);
@@ -150,7 +157,7 @@ test_skiplist_intersect (void)
     cut_assert_equal_uint(5, fixed_posting_list_size(fplist));
     cut_assert_true(fixed_posting_list_check(fplist, 0, 2));
     cut_assert_true(fixed_posting_list_check(fplist, 0, 5));
-    cut_assert_true(fixed_posting_list_check(fplist, 0, 9));
+    cut_assert_true(fixed_posting_list_check(fplist, 0, 8));
     cut_assert_true(fixed_posting_list_check(fplist, 0, 58));
     cut_assert_true(fixed_posting_list_check(fplist, 0, 101));
 }

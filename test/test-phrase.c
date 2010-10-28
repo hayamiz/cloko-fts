@@ -57,11 +57,9 @@ test_phrase_nth (void)
 void
 test_phrase_from_string (void)
 {
-    Phrase *phrase;
-
     cut_assert_null(phrase_from_string(NULL));
 
-    phrase = take_phrase(phrase_from_string("今年こそはゴルフで"));
+    phrase = phrase_from_string("今年こそはゴルフで");
     cut_assert_equal_int(5, phrase_size(phrase));
 
     cut_assert_equal_string("今年", phrase_nth(phrase, 0));
@@ -69,4 +67,21 @@ test_phrase_from_string (void)
     cut_assert_equal_string("は", phrase_nth(phrase, 2));
     cut_assert_equal_string("ゴルフ", phrase_nth(phrase, 3));
     cut_assert_equal_string("で", phrase_nth(phrase, 4));
+}
+
+void
+test_phrase_from_string_slash_splitted (void)
+{
+    phrase = phrase_from_string("ダンサー/の/動き/って/綺麗です/。/それにしても/「");
+    cut_assert_not_null(phrase);
+    cut_assert_equal_int(8, phrase_size(phrase));
+
+    cut_assert_equal_string("ダンサー", phrase_nth(phrase, 0));
+    cut_assert_equal_string("の", phrase_nth(phrase, 1));
+    cut_assert_equal_string("動き", phrase_nth(phrase, 2));
+    cut_assert_equal_string("って", phrase_nth(phrase, 3));
+    cut_assert_equal_string("綺麗です", phrase_nth(phrase, 4));
+    cut_assert_equal_string("。", phrase_nth(phrase, 5));
+    cut_assert_equal_string("それにしても", phrase_nth(phrase, 6));
+    cut_assert_equal_string("「", phrase_nth(phrase, 7));
 }

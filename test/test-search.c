@@ -34,6 +34,10 @@ void cut_teardown (void)
         document_free(doc);
     if (pool)
         thread_pool_destroy(pool);
+    if (docset)
+        document_set_free(docset);
+    if (findex)
+        fixed_index_free(findex);
 }
 
 typedef struct _termentry {
@@ -273,4 +277,17 @@ test_search_docset001 (void)
     cut_assert_equal_uint(5, fixed_posting_list_size(fplist));
 
     fplist = NULL;
+}
+
+void
+test_search_docset001_slash_splitted_query (void)
+{
+    FixedPostingList *fplist;
+    Phrase *phrase;
+
+    docset = document_set_load(docset001_path, 0);
+    findex = document_set_make_fixed_index(docset, 0);
+    phrase = take_phrase_new("流/で/は/大変/な/回り道/に/なり/ます/。/「/理/に/かなっ/た");
+
+    fplist = take_fplist(fixed_index_phrase_get(findex, phrase));
 }

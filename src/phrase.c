@@ -23,12 +23,23 @@ phrase_from_string (const gchar *str)
 
     g_return_val_if_fail(str != NULL, NULL);
 
-    tok = tokenizer_new(str);
-    phrase = phrase_new();
-    while(term = tokenizer_next(tok)){
-        phrase_append_nocopy(phrase, term);
+    if (index(str, '/') != NULL) {
+        gchar **strs;
+        guint idx;
+        strs = g_strsplit(str, "/", 0);
+        phrase = phrase_new();
+        for (idx = 0; strs[idx] != NULL; idx++) {
+            phrase_append(phrase, strs[idx]);
+        }
+        g_strfreev(strs);
+    } else {
+        tok = tokenizer_new(str);
+        phrase = phrase_new();
+        while(term = tokenizer_next(tok)){
+            phrase_append_nocopy(phrase, term);
+        }
+        tokenizer_free(tok);
     }
-    tokenizer_free(tok);
 
     return phrase;
 }

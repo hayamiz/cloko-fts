@@ -3,6 +3,7 @@
 #include "test.h"
 
 static const gchar *docset001_path;
+static const gchar *docset002_path;
 
 // general-purpose variables
 static Document *doc;
@@ -22,6 +23,7 @@ void cut_setup (void)
     cut_set_fixture_data_dir(dir, "fixtures", NULL);
 
     docset001_path = cut_take_string(cut_build_fixture_data_path("docset001.txt", NULL));
+    docset002_path = cut_take_string(cut_build_fixture_data_path("docset002.txt", NULL));
 
     doc = NULL;
     docset = NULL;
@@ -62,7 +64,7 @@ test_search_docset001 (void)
     findex = document_set_make_fixed_index(docset, 0);
 
     cut_assert_not_null(findex);
-    cut_assert_equal_uint(1609, fixed_index_numterms(findex)); // use termdump to count it
+    cut_assert_equal_uint(1705, fixed_index_numterms(findex)); // use termdump to count it
 
     for(entry = termentries; entry->term != NULL; entry++){
         fplist = take_fplist(fixed_index_get(findex, entry->term));
@@ -158,7 +160,8 @@ test_search_docset001 (void)
         take_phrase_new("今年こそはゴルフで"),
         NULL);
     fplist = fixed_index_multiphrase_get(findex, list);
-    cut_assert_null(fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
 
     list = gcut_list_new(
         take_phrase_new("予約しちゃいましたとも。"),
@@ -229,7 +232,10 @@ test_search_docset001 (void)
     fplist = fixed_index_multithreaded_multiphrase_get(findex, pool, list);
     cut_assert_operator_int(0, >=, g_async_queue_length(pool->input_queue));
     cut_assert_operator_int(0, >=, g_async_queue_length(pool->output_queue));
-    cut_assert_null(fplist);
+    take_fplist((FixedPostingList *) fplist);
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
+
 
     list = gcut_list_new(
         take_phrase_new("予約しちゃいましたとも。"),
@@ -290,4 +296,25 @@ test_search_docset001_slash_splitted_query (void)
     phrase = take_phrase_new("流/で/は/大変/な/回り道/に/なり/ます/。/「/理/に/かなっ/た");
 
     fplist = take_fplist(fixed_index_phrase_get(findex, phrase));
+}
+
+void
+test_search_docset002 (void)
+{
+    FixedPostingList *fplist;
+    Phrase *phrase;
+    GList *phrase_list;
+
+    docset = document_set_load(docset002_path, 0);
+    findex = document_set_make_fixed_index(docset, 0);
+
+    phrase_list = gcut_list_new(
+        take_phrase_new("アンディーナ/大学"),
+        take_phrase_new("ベラスケス/大学"),
+        take_phrase_new("記事/ペルー"),
+        take_phrase_new("アンディーナ"),
+        NULL);
+    fplist = take_fplist(fixed_index_multiphrase_get(findex, phrase_list));
+    cut_assert_not_null(fplist);
+    cut_assert_equal_uint(1, fixed_posting_list_size(fplist));
 }
